@@ -11,6 +11,8 @@
 - `internal/collect/`: read-only data collectors for host state
 - `internal/zones/`: firewall zone/policy model, validation, nftables generator, desired-state store (`zones.json` in `SWAT_STATE_DIR`)
 - `internal/audit/`: append-only JSON audit log (`audit.log` in the state dir)
+- `PKGBUILD` and `packaging/`: local Arch package build, read-only systemd unit, and sysusers account
+- `packaging/` and `PKGBUILD`: Arch package systemd unit, sysusers account, and local package build
 - `docs/`: permission, ownership, and configuration contracts
 - `scripts/`: `deploy-test.sh` (build, upload, start on homeserver) and `restart.sh`
 
@@ -22,6 +24,8 @@
 - Admin login validates via PAM (`SWAT_PAM_SERVICE`, `SWAT_SUDO_PAM_SERVICE`) and creates short-lived sessions only
 - Firewall zones: SWAT owns only the `inet swat` nftables table; unlisted traffic between zones is blocked, interfaces outside every zone are untouched; apply = `nft -c` check, load, then confirm within 60 s or automatic rollback; every zone action is audit-logged
 - State dir defaults to `~/.local/state/swat` (`SWAT_STATE_DIR`); confirmed rules are installed to `/etc/swat/swat.nft`
+- The packaged `swat.service` is loopback-only, runs as the unprivileged `swat` account, and sets `SWAT_READ_ONLY=1`; do not grant it sudoers permissions as a substitute for the planned privileged helper
+- The packaged `swat.service` is loopback-only, runs as the unprivileged `swat` account, and sets `SWAT_READ_ONLY=1`; do not grant it sudoers permissions as a substitute for the planned privileged helper
 
 ## Work Guidance
 

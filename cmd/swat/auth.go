@@ -19,6 +19,8 @@ const (
 	sessionTTL    = 15 * time.Minute
 )
 
+func readOnlyMode() bool { return os.Getenv("SWAT_READ_ONLY") == "1" }
+
 type authSession struct {
 	Username      string
 	CSRFToken     string
@@ -136,9 +138,9 @@ func authData(r *http.Request) authView {
 		Authenticated: true,
 		Username:      session.Username,
 		ExpiresAt:     session.ExpiresAt,
-		RootRequested: session.RootRequested,
-		RootAccess:    session.RootAccess || session.AdminAccess,
-		AdminAccess:   session.AdminAccess,
+		RootRequested: session.RootRequested && !readOnlyMode(),
+		RootAccess:    !readOnlyMode() && (session.RootAccess || session.AdminAccess),
+		AdminAccess:   session.AdminAccess && !readOnlyMode(),
 		CSRFToken:     session.CSRFToken,
 	}
 }
@@ -201,6 +203,10 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 func handleRootAccessRequest(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Methode nicht erlaubt", http.StatusMethodNotAllowed)
+		return
+	}
+	if readOnlyMode() {
+		render(w, r, "settings", "settings.html", map[string]any{"RootError": "Diese Installation läuft ausdrücklich im Read-only-Modus."})
 		return
 	}
 	sessionID, session, ok := currentSession(r)

@@ -1,0 +1,29 @@
+[Unit]
+Description=S.W.A.T local system dashboard (read-only package mode)
+After=network.target
+
+[Service]
+Type=simple
+User=swat
+Group=swat
+StateDirectory=swat
+StateDirectoryMode=0700
+Environment=SWAT_ADDR=127.0.0.1:8443
+Environment=SWAT_STATE_DIR=/var/lib/swat
+Environment=SWAT_READ_ONLY=1
+ExecStart=/usr/bin/swat
+Restart=on-failure
+RestartSec=3s
+UMask=0077
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

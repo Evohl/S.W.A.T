@@ -84,3 +84,17 @@ The default session remains read-only. Root-mode actions require an active
 session and CSRF validation, validate target values, use fixed command argument
 lists, and append audit records. They do not grant arbitrary command or file
 access.
+
+The Arch package service sets `SWAT_READ_ONLY=1`. In this mode root access is
+hidden from the session view, root requests are rejected, and both sudo command
+runners refuse execution. The service runs as the unprivileged `swat` user and
+does not install sudoers permissions. Do not disable this mode until a
+separately reviewed privileged helper or Polkit boundary replaces the current
+sudo command path.
+
+The Arch package service sets `SWAT_READ_ONLY=1`. In this mode root access is
+hidden from the session view, root requests are rejected, and both sudo command
+runners refuse execution. The service runs as the unprivileged `swat` user and
+does not install sudoers permissions. Do not remove read-only mode until a
+separately reviewed privileged helper or Polkit boundary replaces the current
+sudo command path.

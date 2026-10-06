@@ -156,6 +156,7 @@ func render(w http.ResponseWriter, r *http.Request, page, name string, data map[
 	data["RootAccess"] = auth.RootAccess
 	data["AdminAccess"] = auth.AdminAccess
 	data["CSRFToken"] = auth.CSRFToken
+	data["ReadOnlyMode"] = readOnlyMode()
 	set, ok := pages[name]
 	if !ok {
 		http.Error(w, "Template nicht gefunden: "+name, http.StatusInternalServerError)

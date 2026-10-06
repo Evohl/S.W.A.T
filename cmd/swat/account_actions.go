@@ -161,6 +161,9 @@ func handleChangeUserGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 func accountActionSession(r *http.Request) (authSession, error) {
+	if readOnlyMode() {
+		return authSession{}, fmt.Errorf("diese Installation läuft ausdrücklich im Read-only-Modus")
+	}
 	_, session, ok := currentSession(r)
 	if !ok || (!session.RootAccess && !session.AdminAccess) {
 		return authSession{}, fmt.Errorf("Root-Zugriff erforderlich")
@@ -217,6 +220,9 @@ func manageableGroup(group string) bool {
 }
 
 func runAsRoot(password string, args ...string) error {
+	if readOnlyMode() {
+		return fmt.Errorf("diese Installation läuft ausdrücklich im Read-only-Modus")
+	}
 	if password == "" {
 		return fmt.Errorf("kein Sudo-Passwort in der Sitzung vorhanden")
 	}

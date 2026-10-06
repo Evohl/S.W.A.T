@@ -731,6 +731,9 @@ func writeVMXML(name string, memory, vcpus int, isoPath, diskPath, network strin
 }
 
 func runAsRootCapture(password string, args ...string) (string, error) {
+	if readOnlyMode() {
+		return "", fmt.Errorf("diese Installation läuft ausdrücklich im Read-only-Modus")
+	}
 	if password == "" {
 		return "", fmt.Errorf("kein Sudo-Passwort in der Sitzung vorhanden")
 	}

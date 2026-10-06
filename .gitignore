@@ -1,2 +1,5 @@
 /swat
 /swat.log
+/pkg/
+/src/
+/*.pkg.tar.zst
