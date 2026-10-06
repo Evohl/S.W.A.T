@@ -1,0 +1,43 @@
+{{define "title"}}Logs{{end}}
+{{define "subtitle"}}Die letzten Einträge aus dem systemd-Journal.{{end}}
+{{define "scripts"}}<script src="/static/logs.js" defer></script>{{end}}
+{{define "content"}}
+			<div class="card log-filters">
+				<h2 class="section-title">Filter</h2>
+				<form class="filter-form" method="get">
+					<label class="filter-search">
+						<span class="field-label">Textsuche</span>
+						<input type="search" name="search" value="{{.Filter.Search}}" maxlength="120" placeholder="Unit oder Nachricht">
+					</label>
+					<div class="filter-levels">
+						<label class="filter-checkbox">
+							<input type="checkbox" name="info" value="1" {{if .Filter.ShowInfo}}checked{{end}}>
+							<span>Info</span>
+						</label>
+						<label class="filter-checkbox">
+							<input type="checkbox" name="warning" value="1" {{if .Filter.ShowWarning}}checked{{end}}>
+							<span>Warning</span>
+						</label>
+						<label class="filter-checkbox">
+							<input type="checkbox" name="error" value="1" {{if .Filter.ShowError}}checked{{end}}>
+							<span>Error</span>
+						</label>
+					</div>
+					<button class="button" type="submit">Anwenden</button>
+				</form>
+			</div>
+			<div class="card">
+				<h2 class="section-title">Journal-Einträge ({{len .Entries}})</h2>
+				{{if .Entries}}
+				<table class="technical-log"><thead><tr><th class="time-column">Time</th><th class="priority-column">Priorität</th><th>Unit</th><th>Nachricht</th></tr></thead><tbody>
+				{{range .Entries}}<tr>
+					<td class="time-column">{{.FormattedTimestamp}}</td>
+					<td class="priority-column">{{if eq .Priority "0" "1" "2" "3"}}<span class="badge fail">Fehler</span>{{else if eq .Priority "4"}}<span class="badge warn">Warnung</span>{{else}}{{.Priority}}{{end}}</td>
+					<td>{{.Unit}}</td><td>{{.Message}}</td>
+				</tr>{{end}}
+				</tbody></table>
+				{{else}}<p class="empty-state">Keine Einträge passen auf die Filter.</p>{{end}}
+			</div>
+{{end}}
+
+{{template "layout" .}}

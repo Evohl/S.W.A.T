@@ -1,0 +1,89 @@
+{{define "title"}}Benutzer{{end}}
+{{define "subtitle"}}Lokale Benutzerkonten, Gruppen und Anmeldungen.{{end}}
+{{define "content"}}
+
+			{{if not .RootAccess}}<div class="service-hint"><strong>Diese Seite ist read-only</strong><p>Benutzer und Gruppen werden aktuell nur angezeigt. Änderungen benötigen Root-Zugriff.</p></div>{{end}}
+			{{if .AccountActionError}}<div class="service-hint auth-error"><strong>Aktion nicht ausgeführt</strong><p>{{.AccountActionError}}</p></div>{{end}}
+			{{if .AccountActionSuccess}}<div class="service-hint success-hint"><strong>Aktion ausgeführt</strong><p>{{.AccountActionSuccess}}</p></div>{{end}}
+
+			{{if not .Accounts.Available}}
+			<div class="service-hint"><strong>Konten nicht verfügbar</strong><p>{{.Accounts.Hint}}</p></div>
+			{{else}}
+			<div class="card">
+				<h2 class="section-title">Kontoübersicht</h2>
+				<div class="stat-grid account-stats">
+					<div class="stat-card"><div class="value">{{len .Accounts.HumanUsers}}</div><div class="label">Benutzerkonten</div></div>
+					<div class="stat-card"><div class="value">{{len .Accounts.Groups}}</div><div class="label">Gruppen</div></div>
+					<div class="stat-card"><div class="value">{{len .Accounts.CurrentSessions}}</div><div class="label">Aktiv angemeldet</div></div>
+				</div>
+				{{if .Accounts.HumanUsers}}<div class="table-scroll"><table><thead><tr><th>Benutzer</th><th>Status</th><th>Letzte Anmeldung</th><th class="table-actions-heading">Aktionen</th></tr></thead><tbody>{{range .Accounts.HumanUsers}}<tr><td>{{.Name}}</td><td>{{if .LoggedIn}}<span class="badge ok">angemeldet</span>{{else}}<span class="badge muted">offline</span>{{end}}</td><td>{{if .LastLogin}}{{.LastLogin}}{{else}}-{{end}}</td><td class="table-actions">{{if ne .Name "nobody"}}<form method="post" action="/admin/users/expire-password"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><input type="hidden" name="username" value="{{.Name}}"><button class="button-secondary" type="submit" {{if not $.RootAccess}}disabled{{end}}>PW beim Login ändern</button></form><form method="post" action="/admin/users/delete"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><input type="hidden" name="username" value="{{.Name}}"><button class="button-secondary danger-button" type="submit" {{if not $.RootAccess}}disabled{{end}}>Löschen</button></form>{{end}}</td></tr>{{end}}</tbody></table></div>{{else}}<div class="empty-state">Keine interaktiven Benutzerkonten gefunden.</div>{{end}}
+			</div>
+
+			<div class="account-forms">
+				<div class="card">
+					<h2 class="section-title">Benutzerkonto erstellen</h2>
+					<form class="form-grid" method="post" action="/admin/users/create">
+						<label>Benutzername<input id="new-username" name="username" type="text" pattern="[a-z_][a-z0-9_-]*" title="Erlaubt sind Kleinbuchstaben, Zahlen, _ und -, der Name muss mit Kleinbuchstaben oder _ beginnen." required {{if not $.RootAccess}}disabled{{end}}></label>
+						<label>Anzeigename<input name="fullname" type="text" placeholder="Max Mustermann" {{if not $.RootAccess}}disabled{{end}}></label>
+						<label>Home-Verzeichnis<input id="new-home" name="home" type="text" placeholder="/home/benutzer" {{if not $.RootAccess}}disabled{{end}}></label>
+						<label>Login-Shell<select name="shell" {{if not $.RootAccess}}disabled{{end}}><option>/bin/bash</option><option>/bin/zsh</option><option>/usr/bin/fish</option><option>/usr/sbin/nologin</option></select></label>
+						<input type="hidden" name="csrf" value="{{$.CSRFToken}}"><div class="form-actions"><button class="button" type="submit" {{if not $.RootAccess}}disabled{{end}}>Benutzer anlegen</button></div>
+					</form>
+				</div>
+				<div class="card">
+					<h2 class="section-title">Gruppe erstellen</h2>
+					<form class="form-grid group-form" method="post" action="/admin/groups/create">
+						<label>Gruppenname<input name="groupname" type="text" pattern="[a-z_][a-z0-9_-]*" required {{if not $.RootAccess}}disabled{{end}}></label>
+						<label>GID<input name="gid" type="number" min="1000" placeholder="automatisch" {{if not $.RootAccess}}disabled{{end}}></label>
+						<input type="hidden" name="csrf" value="{{$.CSRFToken}}"><div class="form-actions"><button class="button" type="submit" {{if not $.RootAccess}}disabled{{end}}>Gruppe anlegen</button></div>
+					</form>
+				</div>
+				<div class="card">
+					<h2 class="section-title">Benutzer und Gruppe</h2>
+					<form class="form-grid membership-form" method="post" action="/admin/users/group">
+						<label>Benutzer<select name="username" required {{if not $.RootAccess}}disabled{{end}}><option value="">Bitte auswählen</option>{{range .Accounts.HumanUsers}}<option value="{{.Name}}">{{.Name}}</option>{{end}}</select></label>
+						<label>Gruppe<select name="groupname" required {{if not $.RootAccess}}disabled{{end}}><option value="">Bitte auswählen</option>{{range .Accounts.Groups}}<option value="{{.Name}}">{{.Name}}</option>{{end}}</select></label>
+						<label>Aktion<select name="action" required {{if not $.RootAccess}}disabled{{end}}><option value="add">Benutzer hinzufügen</option><option value="remove">Benutzer entfernen</option></select></label>
+						<input type="hidden" name="csrf" value="{{$.CSRFToken}}"><div class="form-actions"><button class="button" type="submit" {{if not $.RootAccess}}disabled{{end}}>Änderung anwenden</button></div>
+					</form>
+				</div>
+			</div>
+
+			<div class="card">
+				<div class="page-header-row"><h2 class="section-title">Benutzerkonten</h2></div>
+				<div class="table-scroll"><table><thead><tr><th>Name</th><th>Status</th><th>Letzte Anmeldung</th><th>UID</th><th>Primäre Gruppe</th><th>Weitere Gruppen</th><th>Home</th><th>Shell</th><th>Typ</th></tr></thead><tbody>
+				{{range .Accounts.Users}}<tr><td>{{.Name}}</td><td>{{if .LoggedIn}}<span class="badge ok">angemeldet</span>{{else}}<span class="badge muted">offline</span>{{end}}</td><td>{{if .LastLogin}}{{.LastLogin}}{{else}}-{{end}}</td><td>{{.UID}}</td><td>{{.PrimaryGID}}</td><td>{{if .Groups}}{{.Groups}}{{else}}-{{end}}</td><td>{{.Home}}</td><td>{{.Shell}}</td><td>{{if .System}}System{{else}}Benutzer{{end}}</td></tr>{{end}}
+				</tbody></table></div>
+			</div>
+			<div class="card">
+				<h2 class="section-title">Gruppen</h2>
+				<div class="table-scroll"><table><thead><tr><th>Name</th><th>GID</th><th>Mitglieder</th><th>Typ</th></tr></thead><tbody>
+				{{range .Accounts.Groups}}<tr><td>{{.Name}}</td><td>{{.GID}}</td><td>{{if .Members}}{{.Members}}{{else}}-{{end}}</td><td>{{if .System}}System{{else}}Benutzer{{end}}</td></tr>{{end}}
+				</tbody></table></div>
+			</div>
+			{{end}}
+{{end}}
+
+{{define "scripts"}}
+	<script>
+		(() => {
+			const username = document.querySelector("#new-username");
+			const home = document.querySelector("#new-home");
+			if (!username || !home) return;
+			const updateHome = () => {
+				const value = username.value.trim();
+				if (home.dataset.edited !== "true" || home.value === "" || home.value === `/home/${username.dataset.previous || ""}`) {
+					home.value = value ? `/home/${value}` : "";
+				}
+				username.dataset.previous = value;
+			};
+			home.addEventListener("input", () => { home.dataset.edited = "true"; });
+			username.addEventListener("input", () => {
+				username.setCustomValidity(username.validity.patternMismatch ? "Ungültiger Benutzername." : "");
+				updateHome();
+			});
+		})();
+	</script>
+{{end}}
+
+{{template "layout" .}}

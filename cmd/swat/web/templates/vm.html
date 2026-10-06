@@ -1,0 +1,241 @@
+{{define "title"}}{{.Detail.Name}}{{end}}
+{{define "subtitle"}}VM verwalten{{end}}
+{{define "head"}}<link rel="stylesheet" href="/static/vendor/xterm/xterm.css">{{end}}
+{{define "toolbar"}}<div class="detail-toolbar"><a class="button-secondary" href="/vms">Zur VM-Übersicht</a></div>{{end}}
+{{define "header-actions"}}<span class="badge {{statusClass .Detail.State}}">{{statusLabel .Detail.State}}</span>{{end}}
+{{define "content"}}
+			{{if .VMActionError}}<div class="service-hint"><strong>Aktion fehlgeschlagen</strong><p>{{.VMActionError}}</p></div>{{end}}
+			{{if .VMActionSuccess}}<div class="service-hint"><strong>Aktion ausgeführt</strong><p>{{.VMActionSuccess}}</p></div>{{end}}
+			{{if .VMReadOnly}}<div class="service-hint"><strong>Diese Seite ist read-only</strong>{{if not .RootAccess}}<p>VMs werden aktuell nur angezeigt. Änderungen benötigen Root-Zugriff.</p>{{end}}{{if .VMReadOnlyReason}}<p>{{.VMReadOnlyReason}}</p>{{end}}</div>{{end}}
+			<div class="card">
+				<h2 class="section-title">Aktionen</h2>
+				<div class="vm-actions-row">
+					<form class="button-row" method="post" action="/vm-action">
+						<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+						<input type="hidden" name="name" value="{{.Detail.Name}}">
+						<input type="hidden" name="return_to" value="detail">
+						<button class="button-secondary" type="submit" name="action" value="start" {{if .VMReadOnly}}disabled{{end}}>Starten</button>
+						<button class="button-secondary" type="submit" name="action" value="stop" {{if .VMReadOnly}}disabled{{end}}>Stoppen</button>
+						<button class="button-secondary" type="submit" name="action" value="restart" {{if .VMReadOnly}}disabled{{end}}>Neustarten</button>
+					</form>
+					<form class="button-row" method="post" action="/vm-action" onsubmit="return confirm('Stoppen wirklich erzwingen? Nicht gespeicherte Daten im Gast gehen dabei verloren.');">
+						<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+						<input type="hidden" name="name" value="{{.Detail.Name}}">
+						<input type="hidden" name="return_to" value="detail">
+						<button class="button-danger" type="submit" name="action" value="force-stop" {{if or .VMReadOnly (ne .Detail.State "running")}}disabled{{end}}>Stoppen erzwingen</button>
+					</form>
+					<form class="vm-delete-action" method="post" action="/vm-action" onsubmit="return confirm('VM wirklich löschen?');">
+						<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+						<input type="hidden" name="name" value="{{.Detail.Name}}">
+						<input type="hidden" name="return_to" value="detail">
+						<button class="button-danger" type="submit" name="action" value="delete" {{if or .VMReadOnly (ne .Detail.State "stopped")}}disabled{{end}}>VM löschen</button>
+					</form>
+				</div>
+			</div>
+			<div class="card">
+				<h2 class="section-title">VM-Konfiguration</h2>
+				{{if eq .Detail.State "stopped"}}
+				{{if .Detail.NetworkWarning}}<div class="service-hint"><strong>Netzwerk-Konfiguration korrigieren</strong><p>{{.Detail.NetworkWarning}}</p></div>{{end}}
+				<form class="form-grid vm-config-form" method="post" action="/vm-config">
+					<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+					<input type="hidden" name="name" value="{{.Detail.Name}}">
+					<label>CPU-Kerne<input type="number" name="vcpus" value="{{.Detail.VCPUs}}" min="1" max="256" {{if .VMReadOnly}}disabled{{end}}></label>
+					<label>Arbeitsspeicher (MiB)<input type="number" name="memory" value="{{if .Detail.MemoryMiB}}{{.Detail.MemoryMiB}}{{else}}2048{{end}}" min="256" max="1048576" {{if .VMReadOnly}}disabled{{end}}></label>
+					<label>Netzwerkadapter<select name="network" {{if .VMReadOnly}}disabled{{end}}>
+						<option value="none" {{if not .Detail.NetworkSelection}}selected{{end}}>Kein Netzwerk</option>
+						{{range .Libvirt.Networks}}{{if ge (len .) 1}}<option value="{{index . 0}}" {{if eq $.Detail.NetworkSelection (index . 0)}}selected{{end}}>NAT: {{index . 0}}</option>{{end}}{{end}}
+						{{if .HostInterfaces}}<optgroup label="Host-Netzwerk">{{range .HostInterfaces}}{{if ne .Name "lo"}}{{if .IsBridge}}<option value="bridge:{{.Name}}" {{if eq $.Detail.NetworkSelection (printf "bridge:%s" .Name)}}selected{{end}}>Bridge: {{.Name}}</option>{{else}}<option value="direct:{{.Name}}" {{if eq $.Detail.NetworkSelection (printf "direct:%s" .Name)}}selected{{end}}>Direkt: {{.Name}}</option>{{end}}{{end}}{{end}}</optgroup>{{end}}
+					</select></label>
+					<div class="form-actions"><button class="button" type="submit" {{if .VMReadOnly}}disabled{{end}}>Konfiguration speichern</button></div>
+				</form>
+				{{else}}<p class="section-description">CPU-Kerne, Arbeitsspeicher und Netzwerkadapter können nur bei ausgeschalteter VM geändert werden.</p>{{end}}
+				<dl class="vm-detail-text">
+					<div><dt>vCPUs</dt><dd>{{if .Detail.VCPUs}}{{.Detail.VCPUs}}{{else}}k.A.{{end}}</dd></div>
+					<div><dt>Arbeitsspeicher</dt><dd>{{if .Detail.MemoryConfig}}{{.Detail.MemoryConfig}}{{else}}k.A.{{end}}</dd></div>
+					<div><dt>CPU-Auslastung</dt><dd>{{if .Detail.CPUUsage}}{{.Detail.CPUUsage}}{{else}}k.A.{{end}}</dd></div>
+					<div><dt>Speicher-Auslastung</dt><dd>{{if .Detail.MemoryPercent}}{{.Detail.MemoryPercent}}{{else}}k.A.{{end}}</dd></div>
+				</dl>
+				<h3 class="subsection-title">Virtuelle Festplatten</h3>
+				{{if .Detail.DiskPaths}}<ul class="detail-list">{{range .Detail.DiskPaths}}<li>{{.}}</li>{{end}}</ul>{{else}}<p class="empty-state">Keine Disk-Informationen verfügbar.</p>{{end}}
+				<h3 class="subsection-title">Installationsmedium</h3>
+				{{if .Detail.InstallMedia}}
+				<ul class="detail-list"><li>{{.Detail.InstallMedia}}</li></ul>
+				<form method="post" action="/vm-action">
+					<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+					<input type="hidden" name="name" value="{{.Detail.Name}}">
+					<input type="hidden" name="target" value="{{.Detail.InstallMediaTarget}}">
+					<input type="hidden" name="return_to" value="detail">
+					<button class="button-secondary" type="submit" name="action" value="eject-media" {{if or .VMReadOnly (ne .Detail.State "stopped")}}disabled{{end}}>Installationsmedium aushängen</button>
+				</form>
+				{{else}}<p class="empty-state">Kein Installationsmedium eingelegt.</p>{{end}}
+				<h3 class="subsection-title">Netzwerke</h3>
+				{{if .Detail.Networks}}<ul class="detail-list">{{range .Detail.Networks}}<li>{{.}}</li>{{end}}</ul>{{else}}<p class="empty-state">Keine Netzwerkkonfiguration verfügbar.</p>{{end}}
+			</div>
+			<div class="card vm-spice-card">
+				<h2 class="section-title">VM-Shell</h2>
+				<p class="section-description">Live-Zugriff auf die laufende VM. Die serielle Konsole benötigt einen passenden Gast-Console-Dienst (agetty auf ttyS0). Bleibt nach der Banner-Zeile alles leer, hat der Gast keine serielle Konsole eingerichtet – verwende in dem Fall SPICE.</p>
+				<label class="console-mode">Anzeige
+					<select id="vm-console-mode">
+						<option value="terminal" {{if not .Detail.SpiceAvailable}}selected{{end}}>Terminal</option>
+						{{if .Detail.SpiceAvailable}}<option value="spice" selected>SPICE</option>{{end}}
+					</select>
+				</label>
+				<label class="console-mode" for="vm-spice-resolution">SPICE-Auflösung
+					<select id="vm-spice-resolution">
+						<option value="1280x720">1280 × 720</option>
+						<option value="1600x900">1600 × 900</option>
+						<option value="1920x1080" selected>1920 × 1080</option>
+						<option value="2560x1440">2560 × 1440</option>
+					</select>
+				</label>
+				<div id="vm-terminal-panel" {{if .Detail.SpiceAvailable}}hidden{{end}} data-vm-running="{{if eq .Detail.State "running"}}1{{else}}0{{end}}">
+					<div id="vm-terminal" class="vm-terminal"></div>
+					<span class="secondary-text" id="vm-console-status" hidden></span>
+				</div>
+				<div id="vm-spice-panel" class="vm-spice-panel" {{if not .Detail.SpiceAvailable}}hidden{{end}} data-vm-running="{{if and (eq .Detail.State "running") .Detail.SpiceAvailable}}1{{else}}0{{end}}">
+					<div id="vm-spice-screen" class="vm-spice-screen"></div>
+					<span class="secondary-text" id="vm-spice-status" hidden></span>
+					{{if not .Detail.SpiceAvailable}}<p class="empty-state">Kein aktiver SPICE-Port verfügbar. Starte die VM und lade die Seite neu.</p>{{end}}
+				</div>
+			</div>
+			<div class="card">
+				<h2 class="section-title">Host-Geräte</h2>
+				<p class="section-description">{{len .Detail.HostDeviceOptions}} verfügbare Geräte. Ausgewählte Geräte werden beim nächsten Start an die VM durchgereicht.</p>
+				{{if .Detail.HostDeviceOptions}}
+				<form method="post" action="/vm-config" class="host-device-list">
+					<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+					<input type="hidden" name="name" value="{{.Detail.Name}}">
+					<input type="hidden" name="vcpus" value="{{.Detail.VCPUs}}">
+					<input type="hidden" name="memory" value="{{if .Detail.MemoryMiB}}{{.Detail.MemoryMiB}}{{else}}2048{{end}}">
+					<input type="hidden" name="network" value="{{if .Detail.NetworkSelection}}{{.Detail.NetworkSelection}}{{else}}none{{end}}">
+					<div class="host-device-options">{{range .Detail.HostDeviceOptions}}<label class="host-device-option"><input type="checkbox" name="host_devices" value="{{.Name}}" {{if .Attached}}checked{{end}} {{if or $.VMReadOnly (ne $.Detail.State "stopped")}}disabled{{end}}><span class="host-device-copy"><strong>{{.Label}}</strong><small><span class="host-device-kind">{{.Kind}}</span>{{.Source}}<code>{{.Name}}</code></small></span></label>{{end}}</div>
+					<div class="form-actions"><button class="button" type="submit" {{if or .VMReadOnly (ne .Detail.State "stopped")}}disabled{{end}}>Durchreichung speichern</button></div>
+				</form>
+				{{else}}<p class="empty-state">Keine Host-Geräte für Passthrough gefunden.</p>{{end}}
+			</div>
+			<div class="card"><h2 class="section-title">Libvirt-XML</h2><pre class="raw">{{.Detail.Info}}</pre></div>
+{{end}}
+
+{{define "scripts"}}
+	<script src="/static/vendor/xterm/xterm.js"></script>
+	<script src="/static/vendor/xterm/addon-fit.js"></script>
+	<script type="module">
+	import { SpiceMainConn } from "/static/vendor/spice-html5/src/main.js";
+	(() => {
+		const mode = document.getElementById("vm-console-mode");
+		const terminalPanel = document.getElementById("vm-terminal-panel");
+		const spicePanel = document.getElementById("vm-spice-panel");
+		const terminalContainer = document.getElementById("vm-terminal");
+		const status = document.getElementById("vm-console-status");
+		const spiceStatus = document.getElementById("vm-spice-status");
+		const statusText = {
+			"Nicht verbunden": "Disconnected",
+			"Verbinde...": "Connecting...",
+			"Verbindung fehlgeschlagen": "Connection failed",
+			"Wird erneut verbunden...": "Reconnecting...",
+		};
+		const t = (dict, key) => (document.documentElement.dataset.language === "en" ? dict[key] || key : key);
+		const setStatus = (key) => {
+			if (!key) { status.hidden = true; return; }
+			status.hidden = false;
+			status.textContent = t(statusText, key);
+		};
+		const setSpiceStatus = (key) => {
+			if (!key) { spiceStatus.hidden = true; return; }
+			spiceStatus.hidden = false;
+			spiceStatus.textContent = t(statusText, key);
+		};
+
+		const term = new Terminal({ convertEol: true, cursorBlink: true, fontSize: 14, scrollback: 5000 });
+		const fitAddon = new FitAddon.FitAddon();
+		term.loadAddon(fitAddon);
+		term.open(terminalContainer);
+		fitAddon.fit();
+		window.addEventListener("resize", () => fitAddon.fit());
+
+		let socket;
+		let reconnectTimer;
+
+		const sendResize = () => {
+			if (socket && socket.readyState === WebSocket.OPEN) {
+				socket.send("\u0000" + JSON.stringify({ cols: term.cols, rows: term.rows }));
+			}
+		};
+		term.onResize(sendResize);
+		term.onData(data => {
+			if (socket && socket.readyState === WebSocket.OPEN) {
+				socket.send(data);
+			}
+		});
+
+		mode.addEventListener("change", () => {
+			const terminalMode = mode.value === "terminal";
+			terminalPanel.hidden = !terminalMode;
+			spicePanel.hidden = terminalMode;
+			if (terminalMode) {
+				fitAddon.fit();
+				term.focus();
+			}
+		});
+		const connectTerminal = () => {
+			clearTimeout(reconnectTimer);
+			setStatus("Verbinde...");
+			const scheme = location.protocol === "https:" ? "wss" : "ws";
+			socket = new WebSocket(`${scheme}://${location.host}/vm-console?name={{urlquery .Detail.Name}}`);
+			socket.binaryType = "arraybuffer";
+			socket.onopen = () => { setStatus(""); fitAddon.fit(); sendResize(); term.focus(); };
+			socket.onmessage = event => term.write(event.data instanceof ArrayBuffer ? new Uint8Array(event.data) : event.data);
+			socket.onclose = event => {
+				if (event.code === 1000 || event.code === 1001) {
+					setStatus("Nicht verbunden");
+					return;
+				}
+				setStatus("Wird erneut verbunden...");
+				reconnectTimer = setTimeout(connectTerminal, 2000);
+			};
+			socket.onerror = () => { setStatus("Verbindung fehlgeschlagen"); };
+		};
+
+		if (terminalPanel.dataset.vmRunning === "1") {
+			connectTerminal();
+		}
+
+		let spiceConnection;
+		let spiceReconnectTimer;
+		const spiceResolution = document.getElementById("vm-spice-resolution");
+		const requestSpiceResolution = () => {
+			if (!spiceConnection || !spiceConnection.agent_connected) return;
+			const [width, height] = spiceResolution.value.split("x").map(Number);
+			spiceConnection.resize_window(0, width, height, 32, 0, 0);
+		};
+		spiceResolution.addEventListener("change", requestSpiceResolution);
+		const scheduleSpiceReconnect = () => {
+			clearTimeout(spiceReconnectTimer);
+			spiceReconnectTimer = setTimeout(connectSpice, 2000);
+		};
+		const connectSpice = () => {
+			clearTimeout(spiceReconnectTimer);
+			setSpiceStatus("Verbinde...");
+			const scheme = location.protocol === "https:" ? "wss" : "ws";
+			const uri = `${scheme}://${location.host}/vm-spice?name={{urlquery .Detail.Name}}`;
+			try {
+				spiceConnection = new SpiceMainConn({
+					uri,
+					screen_id: "vm-spice-screen",
+					password: "",
+					onerror: () => { setSpiceStatus("Verbindung fehlgeschlagen"); scheduleSpiceReconnect(); },
+					onagent: () => { setSpiceStatus(""); requestSpiceResolution(); },
+				});
+			} catch (err) {
+				setSpiceStatus("Verbindung fehlgeschlagen");
+				scheduleSpiceReconnect();
+			}
+		};
+		if (spicePanel.dataset.vmRunning === "1") {
+			connectSpice();
+		}
+	})();
+	</script>
+{{end}}
+
+{{template "layout" .}}

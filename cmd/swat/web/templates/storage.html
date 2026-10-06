@@ -1,0 +1,27 @@
+{{define "title"}}Storage{{end}}
+{{define "subtitle"}}Blockgeräte, Dateisysteme und Einhängepunkte.{{end}}
+{{define "content"}}
+			{{if .Summary.Usage}}
+			<section class="storage-summary" aria-label="Speicherübersicht">
+				<div class="storage-summary-head">
+					<div><span class="storage-summary-label">Gesamter Speicher</span><strong>{{.Summary.Usage}} belegt</strong></div>
+					<span class="storage-summary-percent">{{.Summary.Usage}}</span>
+				</div>
+				<div class="storage-meter" role="img" aria-label="{{.Summary.Usage}} belegt, {{.Summary.Available}} frei">
+					<div class="storage-meter-used" style="width: {{.Summary.Percent}}%"></div>
+				</div>
+				<div class="storage-summary-values"><span><strong>{{.Summary.Used}}</strong> belegt</span><span><strong>{{.Summary.Available}}</strong> frei</span></div>
+			</section>
+			{{end}}
+			<div class="card">
+				<h2 class="section-title">Blockgeräte</h2>
+				{{if .Devices}}
+				<table class="storage-table">
+					<thead><tr><th>Gerät</th><th>Übergeordnetes Gerät</th><th>Typ</th><th>Größe</th><th>Belegung / frei</th><th>Dateisystem</th><th>Einhängepunkt</th></tr></thead>
+					<tbody>{{range .Devices}}{{template "blockdevice" .}}{{end}}</tbody>
+				</table>
+				{{else}}<p class="empty-state">Keine Blockgeräte gefunden.</p>{{end}}
+			</div>
+{{end}}
+
+{{template "layout" .}}

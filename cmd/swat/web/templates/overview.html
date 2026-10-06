@@ -1,0 +1,84 @@
+{{define "title"}}Übersicht{{end}}
+{{define "subtitle"}}Zustand und Ressourcen dieses Hosts auf einen Blick.{{end}}
+{{define "content"}}
+
+			<div class="system-panel">
+				<div class="system-panel-head">
+					<div>
+						<h2 class="section-title">Systeminformationen</h2>
+						<p>{{.System.Hostname}} <span>·</span> {{.System.OS}} <span>·</span> {{.System.Architecture}}</p>
+					</div>
+					<span class="badge ok">online</span>
+				</div>
+				<div class="system-info-grid">
+					<div class="system-item system-item-wide"><span class="label">Hardware</span><strong>{{.System.Hardware}}</strong></div>
+					<div class="system-item system-item-wide"><span class="label">Prozessor</span><strong>{{.System.CPUModel}}</strong><small>{{.System.CPUCores}} Kerne</small></div>
+					<div class="system-item"><span class="label">Uptime</span><strong>{{.System.Uptime}}</strong></div>
+					<div class="system-item"><span class="label">CPU-Auslastung</span><strong>{{.System.LoadPercent}}</strong><small>{{.System.Load}}</small></div>
+					<div class="system-item"><span class="label">RAM belegt</span><strong>{{.System.MemoryPercent}}</strong><small>{{.System.MemoryUsed}}</small></div>
+				</div>
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Storage</h2>
+				{{if .StorageDevices}}
+				<div class="table-scroll"><table class="storage-table">
+					<thead><tr><th>Gerät</th><th>Übergeordnetes Gerät</th><th>Typ</th><th>Größe</th><th>Belegung / frei</th><th>Dateisystem</th><th>Einhängepunkt</th></tr></thead>
+					<tbody>{{range .StorageDevices}}{{template "blockdevice" .}}{{end}}</tbody>
+				</table></div>
+				{{else}}<p class="empty-state">Keine Blockgeräte gefunden.</p>{{end}}
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Virtuelle Maschinen</h2>
+				{{if not .VMInventory.Available}}
+				<p class="empty-state">{{.VMInventory.Hint}}</p>
+				{{else if .VMInventory.VMs}}
+				<table><thead><tr><th>Name</th><th>Status</th></tr></thead><tbody>
+				{{range .VMInventory.VMs}}<tr><td>{{.Name}}</td><td><span class="badge {{statusClass .State}}">{{statusLabel .State}}</span></td></tr>{{end}}
+				</tbody></table>
+				{{else}}<p class="empty-state">Keine virtuellen Maschinen gefunden.</p>{{end}}
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Service-Zuständigkeiten</h2>
+				<table>
+					<thead><tr><th>Bereich</th><th>Zuständig</th><th>Konkurrierende Dienste</th><th>Status</th><th>Verwaltet durch</th><th>Aufgabe</th><th>Empfehlung</th></tr></thead>
+					<tbody>
+					{{range .Ownership}}
+					<tr>
+						<td>{{.Domain}}</td>
+						<td>{{.Owner}}</td>
+						<td>{{if .Competitors}}{{.Competitors}}{{else}}-{{end}}</td>
+						<td><span class="badge {{.State}}">{{.StateLabel}}</span></td>
+						<td>{{.ManagedBy}}</td>
+						<td>{{.Purpose}}</td>
+						<td>{{.Recommendation}}</td>
+					</tr>
+					{{end}}
+					</tbody>
+				</table>
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Fehlgeschlagene systemd-Units</h2>
+				{{if .FailedUnits}}
+				<table>
+					<thead><tr><th>Unit</th><th>Status</th><th>Beschreibung</th></tr></thead>
+					<tbody>
+					{{range .FailedUnits}}
+					<tr>
+						<td>{{.Name}}</td>
+						<td><span class="badge fail">{{.Active}}</span></td>
+						<td>{{.Description}}</td>
+					</tr>
+					{{end}}
+					</tbody>
+				</table>
+				{{else}}
+				<p class="empty-state">Keine fehlgeschlagenen Units — alles läuft.</p>
+				{{end}}
+			</div>
+{{end}}
+
+{{template "layout" .}}

@@ -1,0 +1,86 @@
+{{define "title"}}Virtuelle Maschinen{{end}}
+{{define "subtitle"}}Libvirt-Gäste und Virtualisierungsstatus.{{end}}
+{{define "content"}}
+			{{if .VMCreateError}}<div class="service-hint"><strong>VM konnte nicht erstellt werden</strong><p>{{.VMCreateError}}</p></div>{{end}}
+			{{if .VMActionError}}<div class="service-hint"><strong>Libvirt-Aktion fehlgeschlagen</strong><p>{{.VMActionError}}</p></div>{{end}}
+			{{if .VMActionSuccess}}<div class="success-hint"><strong>Libvirt-Aktion ausgeführt</strong><p>{{.VMActionSuccess}}</p></div>{{end}}
+			<div class="card vm-list">
+				<h2 class="section-title">Angelegte VMs</h2>
+				<div data-live-refresh="vm-list">
+				{{if not .Inventory.Available}}
+				<div class="service-hint">
+					<strong>Libvirt nicht verfügbar</strong>
+					<p>{{.Inventory.Hint}}</p>
+					<pre class="command-block">sudo pacman -S --needed libvirt qemu-desktop
+sudo systemctl enable --now libvirtd.service
+sudo usermod -aG libvirt "$USER"
+virsh -c qemu:///system list --all</pre>
+				</div>
+				{{else if .VMDetails}}
+				{{range .VMDetails}}
+				<div class="vm-entry">
+					<div class="vm-row">
+						<span class="vm-summary-title"><strong>{{.Name}}</strong></span>
+						<span class="vm-summary-metric"><small>Zustand</small><span class="badge {{statusClass .State}}">{{statusLabel .State}}</span></span>
+						<span class="vm-summary-metric"><small>CPU</small><strong>{{if eq .State "stopped"}}-{{else if .CPUUsage}}{{.CPUUsage}}{{else}}k.A.{{end}}</strong></span>
+						<span class="vm-summary-metric"><small>Speicher</small><strong>{{if eq .State "stopped"}}-{{else if .MemoryPercent}}{{.MemoryPercent}}{{else}}k.A.{{end}}</strong></span>
+						<span class="vm-summary-metric"><small>Virtuelle Platte</small><strong>{{if .DiskUsage}}{{.DiskUsage}}{{else}}k.A.{{end}}</strong></span>
+						<div class="vm-row-actions">
+							<form method="post" action="/vm-action"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><input type="hidden" name="name" value="{{.Name}}"><button class="button-secondary" type="submit" name="action" value="start" {{if $.VMReadOnly}}disabled{{end}}>Starten</button></form>
+							<form method="post" action="/vm-action"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><input type="hidden" name="name" value="{{.Name}}"><button class="button-secondary" type="submit" name="action" value="stop" {{if $.VMReadOnly}}disabled{{end}}>Stoppen</button></form>
+							<form method="post" action="/vm-action"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><input type="hidden" name="name" value="{{.Name}}"><button class="button-secondary" type="submit" name="action" value="restart" {{if $.VMReadOnly}}disabled{{end}}>Neustarten</button></form>
+							<a class="button-secondary" href="/vm?name={{urlquery .Name}}">Details</a>
+						</div>
+					</div>
+				</div>
+				{{end}}
+				{{else}}<p class="empty-state">Keine virtuellen Maschinen gefunden.</p>{{end}}
+				</div>
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">VM erstellen</h2>
+				<p class="page-subtitle">Neue virtuelle Maschine mit Speicher, Prozessor und Installationsmedium anlegen.</p>
+				{{if .VMReadOnly}}<div class="service-hint"><strong>Diese Seite ist read-only</strong>{{if not .RootAccess}}<p>VMs werden aktuell nur angezeigt. Änderungen benötigen Root-Zugriff.</p>{{end}}{{if .VMReadOnlyReason}}<p>{{.VMReadOnlyReason}}</p>{{end}}</div>{{end}}
+				<form class="form-grid" method="post" action="/vm-create">
+					<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+					<label>Name<input type="text" name="name" placeholder="z. B. test-vm" {{if .VMReadOnly}}disabled{{end}}></label>
+					<label>Arbeitsspeicher (MiB)<input type="number" name="memory" value="2048" min="256" {{if .VMReadOnly}}disabled{{end}}></label>
+					<label>Virtuelle CPUs<input type="number" name="vcpus" value="2" min="1" {{if .VMReadOnly}}disabled{{end}}></label>
+					<label>Festplatte (GiB)<input type="number" name="disk_gib" value="20" min="10" {{if .VMReadOnly}}disabled{{end}}></label>
+					<label>Speicherpool<select name="pool" {{if .VMReadOnly}}disabled{{end}}>{{if .Libvirt.Pools}}{{range .Libvirt.Pools}}<option value="{{index . 0}}">{{index . 0}}</option>{{end}}{{else}}<option value="">Bitte zuerst Libvirt lesen</option>{{end}}</select></label>
+					<label>ISO-Installationsmedium<input type="text" name="iso" placeholder="/var/lib/libvirt/images/installer.iso" {{if .VMReadOnly}}disabled{{end}}></label>
+					<label>Netzwerk<select name="network" {{if .VMReadOnly}}disabled{{end}}><option value="none">Kein Netzwerk</option>{{range .Libvirt.Networks}}{{if ge (len .) 2}}{{if eq (index . 1) "active"}}<option value="{{index . 0}}">NAT: {{index . 0}}</option>{{end}}{{end}}{{end}}{{if .HostInterfaces}}<optgroup label="Host-Netzwerk">{{range .HostInterfaces}}{{if ne .Name "lo"}}{{if .IsBridge}}<option value="bridge:{{.Name}}">Bridge: {{.Name}}</option>{{else}}<option value="direct:{{.Name}}">Direkt: {{.Name}}</option>{{end}}{{end}}{{end}}</optgroup>{{end}}</select></label>
+					<label class="checkbox-label"><input type="checkbox" name="start_after_create" checked {{if .VMReadOnly}}disabled{{end}}> Nach dem Erstellen starten</label>
+					<div class="form-actions"><button class="button" type="submit" {{if .VMReadOnly}}disabled{{end}}>VM erstellen</button></div>
+				</form>
+			</div>
+
+			<div class="resource-grid">
+				<div class="card">
+					<h2 class="section-title">Speicherpools</h2>
+					<form class="form-grid compact-form" method="post" action="/libvirt-resource-action">
+						<input type="hidden" name="csrf" value="{{.CSRFToken}}"><input type="hidden" name="resource" value="pool-create">
+						<label>Name<input type="text" name="pool_name" placeholder="z. B. vm-storage" {{if .VMReadOnly}}disabled{{end}}></label>
+						<label>Zielpfad<input type="text" name="pool_path" placeholder="/var/lib/libvirt/images" {{if .VMReadOnly}}disabled{{end}}></label>
+						<div class="form-actions"><button class="button-secondary" type="submit" {{if .VMReadOnly}}disabled{{end}}>Pool hinzufügen</button></div>
+					</form>
+					{{if .Libvirt.Pools}}
+					<table><thead><tr><th>Name</th><th>Status</th><th>Aktionen</th></tr></thead><tbody>
+					{{range .Libvirt.Pools}}<tr><td>{{index . 0}}</td><td>{{if ge (len .) 2}}{{index . 1}}{{else}}k.A.{{end}}</td><td class="table-actions"><form method="post" action="/libvirt-resource-action"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><input type="hidden" name="resource" value="pool"><input type="hidden" name="name" value="{{index . 0}}"><button class="button-secondary" type="submit" name="action" value="start" {{if $.VMReadOnly}}disabled{{end}}>Starten</button><button class="button-secondary" type="submit" name="action" value="stop" {{if $.VMReadOnly}}disabled{{end}}>Stoppen</button></form></td></tr>{{end}}
+					</tbody></table>
+					{{range .Libvirt.Pools}}{{ $poolName := index . 0 }}<section class="pool-iso-list"><h3>{{ $poolName }} · ISOs</h3>{{if (index $.PoolISOs $poolName)}}<div class="iso-file-list">{{range (index $.PoolISOs $poolName)}}<div class="iso-file-row"><div><strong>{{.Name}}</strong><small>{{.Size}}</small></div><form method="post" action="/libvirt-resource-action" onsubmit="return confirm('ISO wirklich löschen?');"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><input type="hidden" name="resource" value="iso-delete"><input type="hidden" name="name" value="{{ $poolName }}"><input type="hidden" name="iso" value="{{.Name}}"><button class="button-danger" type="submit" {{if $.VMReadOnly}}disabled{{end}}>Löschen</button></form></div>{{end}}</div>{{else}}<p class="empty-state">Keine ISO-Dateien im Pool gefunden.</p>{{end}}</section>{{end}}
+					{{else}}<p class="empty-state">Keine Speicherpools gefunden.</p>{{end}}
+				</div>
+				<div class="card">
+					<h2 class="section-title">Virtuelle Netzwerke</h2>
+					{{if .Libvirt.Networks}}
+					<table><thead><tr><th>Name</th><th>Status</th><th>Aktionen</th></tr></thead><tbody>
+					{{range .Libvirt.Networks}}<tr><td>{{index . 0}}</td><td>{{if ge (len .) 2}}{{index . 1}}{{else}}k.A.{{end}}</td><td class="table-actions"><form method="post" action="/libvirt-resource-action"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><input type="hidden" name="resource" value="network"><input type="hidden" name="name" value="{{index . 0}}"><button class="button-secondary" type="submit" name="action" value="start" {{if $.VMReadOnly}}disabled{{end}}>Starten</button><button class="button-secondary" type="submit" name="action" value="stop" {{if $.VMReadOnly}}disabled{{end}}>Stoppen</button></form></td></tr>{{end}}
+					</tbody></table>
+					{{else}}<p class="empty-state">Keine virtuellen Netzwerke gefunden.</p>{{end}}
+				</div>
+			</div>
+{{end}}
+
+{{template "layout" .}}

@@ -1,0 +1,34 @@
+{{define "nav"}}
+	<div class="sidebar {{if .AdminAccess}}admin-access{{end}}">
+	<div class="brand" aria-label="S.W.A.T - System Web Administration Tool">
+		<div class="brand-lockup">
+			{{if .RootAccess}}<img class="brand-logo" src="/static/SWAT_Admin.png" alt="S.W.A.T Admin - root access">{{else}}<img class="brand-logo" src="/static/SWAT.png" alt="S.W.A.T - System Web Administration Tool">{{end}}
+		</div>
+		{{if .Authenticated}}<div class="brand-session">Angemeldet als <strong>{{.Username}}</strong></div>{{end}}
+	</div>
+
+	<div class="profile-nav">
+		<a class="nav-item {{if eq .Page "settings"}}active{{end}}" href="/settings"><span class="dot"></span>Mein Profil</a>
+		{{if .Authenticated}}<a class="nav-item" href="/logout"><span class="dot"></span>Abmelden</a>{{end}}
+	</div>
+
+	<div class="nav-section">
+		<div class="nav-heading">Info</div>
+		<a class="nav-item {{if eq .Page "overview"}}active{{end}}" href="/"><span class="dot"></span>Übersicht</a>
+		<a class="nav-item {{if eq .Page "network-info"}}active{{end}}" href="/network-info"><span class="dot"></span>Netzwerk</a>
+		<a class="nav-item {{if eq .Page "services"}}active{{end}}" href="/services"><span class="dot"></span>Services</a>
+		<a class="nav-item {{if eq .Page "logs"}}active{{end}}" href="/logs"><span class="dot"></span>Logs</a>
+	</div>
+
+	<div class="nav-section nav-section-admin">
+		<div class="nav-heading">Administration</div>
+		<a class="nav-item {{if eq .Page "system"}}active{{end}}" href="/system"><span class="dot"></span>System</a>
+		<a class="nav-item {{if eq .Page "users"}}active{{end}}" href="/users"><span class="dot"></span>Benutzer</a>
+		<a class="nav-item {{if eq .Page "network"}}active{{end}}" href="/network"><span class="dot"></span>Netzwerk</a>
+		<a class="nav-item {{if eq .Page "firewall"}}active{{end}}" href="/firewall"><span class="dot"></span>Firewall</a>
+		<a class="nav-item {{if eq .Page "vms"}}active{{end}}" href="/vms"><span class="dot"></span>Virtual Machines</a>
+		{{if not .Authenticated}}<a class="nav-item" href="/login"><span class="dot"></span>Admin anmelden</a>{{end}}
+	</div>
+
+</div>
+{{end}}

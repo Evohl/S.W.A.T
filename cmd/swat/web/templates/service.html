@@ -1,0 +1,42 @@
+{{define "title"}}{{.Detail.Unit.Name}}{{end}}
+{{define "subtitle"}}Details zum systemd-Dienst{{end}}
+{{define "toolbar"}}<div class="detail-toolbar"><a class="button-secondary" href="/services">Zurück zu Services</a></div>{{end}}
+{{define "header-actions"}}<span class="badge {{if eq .Detail.ActiveState "active"}}ok{{else if eq .Detail.ActiveState "failed"}}fail{{else}}warn{{end}}">{{.Detail.ActiveState}}</span>{{end}}
+{{define "content"}}
+
+				{{if .ServiceActionError}}<div class="service-hint auth-error"><strong>Service-Aktion fehlgeschlagen</strong><p>{{.ServiceActionError}}</p></div>{{end}}
+				{{if .ServiceActionSuccess}}<div class="service-hint success-hint"><strong>Service-Aktion ausgeführt</strong><p>{{.ServiceActionSuccess}}</p></div>{{end}}
+				{{if .RootAccess}}
+				<div class="card service-actions-card">
+					<h2 class="section-title">Service verwalten</h2>
+					<div class="button-row">
+						<form method="post" action="/admin/service-action"><input type="hidden" name="csrf" value="{{.CSRFToken}}"><input type="hidden" name="unit" value="{{.Detail.Unit.Name}}"><input type="hidden" name="action" value="start"><button class="button" type="submit">Starten</button></form>
+						<form method="post" action="/admin/service-action"><input type="hidden" name="csrf" value="{{.CSRFToken}}"><input type="hidden" name="unit" value="{{.Detail.Unit.Name}}"><input type="hidden" name="action" value="stop"><button class="button" type="submit">Stoppen</button></form>
+						<form method="post" action="/admin/service-action"><input type="hidden" name="csrf" value="{{.CSRFToken}}"><input type="hidden" name="unit" value="{{.Detail.Unit.Name}}"><input type="hidden" name="action" value="enable"><button class="button" type="submit">Aktivieren</button></form>
+						<form method="post" action="/admin/service-action"><input type="hidden" name="csrf" value="{{.CSRFToken}}"><input type="hidden" name="unit" value="{{.Detail.Unit.Name}}"><input type="hidden" name="action" value="disable"><button class="button-secondary" type="submit">Deaktivieren</button></form>
+					</div>
+				</div>
+				{{end}}
+
+			<div class="stat-grid service-detail-stats">
+				<div class="stat-card"><div class="value">{{.Detail.SubState}}</div><div class="label">Unterstatus</div></div>
+				<div class="stat-card"><div class="value">{{.Detail.MainPID}}</div><div class="label">Haupt-PID</div></div>
+				<div class="stat-card"><div class="value">{{.Detail.Memory}}</div><div class="label">Aktueller Speicher</div></div>
+				<div class="stat-card"><div class="value">{{.Detail.Since}}</div><div class="label">Aktiv seit</div></div>
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Letzte Journal-Einträge</h2>
+				{{if .Detail.Logs}}
+				<table class="technical-log"><thead><tr><th class="time-column">Zeit</th><th class="priority-column">Priorität</th><th>Nachricht</th></tr></thead><tbody>
+				{{range .Detail.Logs}}<tr>
+					<td class="time-column">{{.FormattedTimestamp}}</td>
+					<td class="priority-column">{{if eq .Priority "0" "1" "2" "3"}}<span class="badge fail">Fehler</span>{{else if eq .Priority "4"}}<span class="badge warn">Warnung</span>{{else}}{{.Priority}}{{end}}</td>
+					<td>{{.Message}}</td>
+				</tr>{{end}}
+				</tbody></table>
+				{{else}}<p class="empty-state">Keine Journal-Einträge gefunden.</p>{{end}}
+			</div>
+{{end}}
+
+{{template "layout" .}}

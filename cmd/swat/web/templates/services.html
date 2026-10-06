@@ -1,0 +1,30 @@
+{{define "title"}}Services{{end}}
+{{define "subtitle"}}Systemdienste und ihr aktueller Zustand.{{end}}
+{{define "content"}}
+			<div class="card">
+				<h2 class="section-title">systemd-Units ({{len .Units}})</h2>
+				{{if .Units}}
+				<table>
+					<thead><tr><th>Unit</th><th>Status</th><th>Beschreibung</th><th class="table-actions-heading">Aktion</th></tr></thead>
+					<tbody>
+					{{range .Units}}
+					<tr>
+						<td>{{.Name}}</td>
+						<td>
+							{{if eq .Active "active"}}<span class="badge ok">{{.Active}}</span>
+							{{else if eq .Active "failed"}}<span class="badge fail">{{.Active}}</span>
+							{{else}}<span class="badge warn">{{.Active}}</span>{{end}}
+						</td>
+						<td>{{.Description}}</td>
+						<td class="table-actions"><a class="button-secondary" href="/service?unit={{urlquery .Name}}">Details</a></td>
+					</tr>
+					{{end}}
+					</tbody>
+				</table>
+				{{else}}
+				<p class="empty-state">Keine Units gefunden.</p>
+				{{end}}
+			</div>
+{{end}}
+
+{{template "layout" .}}

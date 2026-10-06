@@ -1,0 +1,24 @@
+{{define "title"}}Netzwerk{{end}}
+{{define "subtitle"}}Interfaces, Adressen und Betriebszustände.{{end}}
+{{define "content"}}
+			<div class="card">
+				<h2 class="section-title">Interfaces</h2>
+				<table>
+					<thead><tr><th>Interface</th><th>Status</th><th>Adressen</th></tr></thead>
+					<tbody>
+					{{range .Interfaces}}
+					<tr>
+						<td>{{.Name}}</td>
+						<td>
+							{{if eq .OperState "UP"}}<span class="badge ok">{{.OperState}}</span>
+							{{else}}<span class="badge warn">{{.OperState}}</span>{{end}}
+						</td>
+						<td>{{range .Addrs}}{{.Local}}/{{.PrefixLen}} <span class="secondary-text">({{.Family}})</span><br>{{end}}</td>
+					</tr>
+					{{end}}
+					</tbody>
+				</table>
+			</div>
+{{end}}
+
+{{template "layout" .}}

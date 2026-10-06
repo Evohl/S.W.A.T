@@ -1,0 +1,18 @@
+{{define "title"}}Login{{end}}
+{{define "content"}}
+	<main class="auth-shell">
+		<section class="auth-card" aria-labelledby="login-title">
+			<img class="auth-logo" src="/static/SWAT.png" alt="S.W.A.T">
+			<h1 id="login-title">Anmeldung</h1>
+			{{if .LoginError}}<div class="service-hint auth-error"><strong>Anmeldung fehlgeschlagen</strong><p>{{.LoginError}}</p></div>{{end}}
+			<form class="auth-form" method="post" action="/login">
+				<label>Benutzername<input name="username" type="text" autocomplete="username" required></label>
+				<label>Passwort<input name="password" type="password" autocomplete="current-password" required></label>
+				<button class="button" type="submit">Anmelden</button>
+			</form>
+			<p class="auth-note">Melden Sie sich an, um fortzufahren.</p>
+		</section>
+	</main>
+{{end}}
+
+{{template "auth-layout" .}}

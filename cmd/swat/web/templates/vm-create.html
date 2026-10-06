@@ -1,0 +1,20 @@
+{{define "title"}}Neue virtuelle Maschine{{end}}
+{{define "subtitle"}}Libvirt-Gast vorbereiten{{end}}
+{{define "toolbar"}}<div class="detail-toolbar"><a class="button-secondary" href="/vms">Zur VM-Übersicht</a></div>{{end}}
+{{define "content"}}
+			{{if .VMCreateError}}<div class="service-hint"><strong>VM konnte nicht erstellt werden</strong><p>{{.VMCreateError}}</p></div>{{end}}
+			{{if .VMCreateSuccess}}<div class="service-hint"><strong>VM wurde erstellt</strong><p>{{.VMCreateSuccess}}</p></div>{{end}}
+			{{if .VMReadOnly}}<div class="service-hint"><strong>Diese Seite ist read-only</strong>{{if not .RootAccess}}<p>VMs werden aktuell nur angezeigt. Änderungen benötigen Root-Zugriff.</p>{{end}}{{if .VMReadOnlyReason}}<p>{{.VMReadOnlyReason}}</p>{{end}}</div>{{end}}
+			<form class="card form-grid" method="post" action="/vm-create">
+				<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+				<label>Name<input type="text" name="name" placeholder="z. B. test-vm" {{if .VMReadOnly}}disabled{{end}}></label>
+				<label>Arbeitsspeicher (MiB)<input type="number" name="memory" value="2048" min="256" {{if .VMReadOnly}}disabled{{end}}></label>
+				<label>Virtuelle CPUs<input type="number" name="vcpus" value="2" min="1" {{if .VMReadOnly}}disabled{{end}}></label>
+				<label>Festplatte (GiB)<input type="number" name="disk_gib" value="20" min="10" {{if .VMReadOnly}}disabled{{end}}></label>
+				<label>Speicherpool<select name="pool" {{if .VMReadOnly}}disabled{{end}}>{{if .Libvirt.Pools}}{{range .Libvirt.Pools}}<option value="{{index . 0}}">{{index . 0}}</option>{{end}}{{else}}<option value="">Bitte zuerst Libvirt lesen</option>{{end}}</select></label>
+				<label>Installationsmedium<input type="text" name="iso" placeholder="/var/lib/libvirt/images/installer.iso" {{if .VMReadOnly}}disabled{{end}}></label>
+				<div class="form-actions"><button class="button" type="submit" {{if .VMReadOnly}}disabled{{end}}>VM erstellen</button><a class="button-secondary" href="/vms">Abbrechen</a></div>
+			</form>
+{{end}}
+
+{{template "layout" .}}

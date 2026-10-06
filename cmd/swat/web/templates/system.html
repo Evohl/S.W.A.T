@@ -1,0 +1,61 @@
+{{define "title"}}System{{end}}
+{{define "subtitle"}}Hostinformationen und Systemparameter.{{end}}
+{{define "content"}}
+
+			<div class="stat-grid">
+				<div class="stat-card"><div class="value">{{.System.Hostname}}</div><div class="label">Hostname</div></div>
+				<div class="stat-card"><div class="value">{{.System.OS}}</div><div class="label">Betriebssystem</div></div>
+				<div class="stat-card"><div class="value">{{.System.CPUCores}}</div><div class="label">CPU-Kerne</div></div>
+				<div class="stat-card"><div class="value">{{.System.MemoryUsed}}</div><div class="label">RAM belegt</div></div>
+			</div>
+
+			{{if .SystemActionError}}<div class="service-hint auth-error"><strong>Änderung nicht ausgeführt</strong><p>{{.SystemActionError}}</p></div>{{end}}
+			{{if .SystemActionSuccess}}<div class="service-hint success-hint"><strong>Änderung ausgeführt</strong><p>{{.SystemActionSuccess}}</p></div>{{end}}
+
+			<div class="card">
+				<h2 class="section-title">Hostname, Sprache und Zeitzone</h2>
+				<p class="section-description">Systemweite Einstellungen. Die Sprache hier ist LANG für Systemdienste; die Dashboard-Sprache wird separat unter „Mein Profil“ gewählt.</p>
+				{{if not .RootAccess}}<p class="service-hint">Änderungen erfordern den Root-Modus.</p>{{end}}
+				<div class="system-config-grid">
+					<form class="form-grid system-setting-form" method="post" action="/admin/system/setting">
+						<input type="hidden" name="csrf" value="{{.CSRFToken}}"><input type="hidden" name="action" value="hostname">
+						<label>Hostname<input name="value" type="text" value="{{.SystemSettings.Hostname}}" maxlength="253" pattern="[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*" required {{if or (not .RootAccess) (not .SystemSettings.HostnameReady)}}disabled{{end}}></label>
+						<p class="secondary-text">Ändert den statischen System-Hostname; /etc/hosts wird nicht überschrieben.</p>
+						<div class="form-actions"><button class="button-secondary" type="submit" {{if or (not .RootAccess) (not .SystemSettings.HostnameReady)}}disabled{{end}}>Hostname setzen</button></div>
+					</form>
+					<form class="form-grid system-setting-form" method="post" action="/admin/system/setting">
+						<input type="hidden" name="csrf" value="{{.CSRFToken}}"><input type="hidden" name="action" value="locale">
+						<label>Systemsprache (LANG)
+							<select name="value" required {{if or (not .RootAccess) (not .SystemSettings.LocaleReady)}}disabled{{end}}>
+								{{range .SystemSettings.Locales}}<option value="{{.Name}}" {{if .Selected}}selected{{end}}>{{.Name}}</option>{{end}}
+							</select>
+						</label>
+						<p class="secondary-text">Setzt die systemweite Locale auf eine installierte Sprache.</p>
+						<div class="form-actions"><button class="button-secondary" type="submit" {{if or (not .RootAccess) (not .SystemSettings.LocaleReady)}}disabled{{end}}>Sprache setzen</button></div>
+					</form>
+					<form class="form-grid system-setting-form" method="post" action="/admin/system/setting">
+						<input type="hidden" name="csrf" value="{{.CSRFToken}}"><input type="hidden" name="action" value="timezone">
+						<label>Zeitzone
+							<select name="value" required {{if or (not .RootAccess) (not .SystemSettings.TimezoneReady)}}disabled{{end}}>
+								{{range .SystemSettings.Timezones}}<option value="{{.}}" {{if eq . $.SystemSettings.Timezone}}selected{{end}}>{{.}}</option>{{end}}
+							</select>
+						</label>
+						<p class="secondary-text">Ändert die Systemzeitzone, nicht die Systemzeit.</p>
+						<div class="form-actions"><button class="button-secondary" type="submit" {{if or (not .RootAccess) (not .SystemSettings.TimezoneReady)}}disabled{{end}}>Zeitzone setzen</button></div>
+					</form>
+				</div>
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Hardware und Betriebssystem</h2>
+				<div class="form-grid system-fields">
+					<label>Betriebssystem<input type="text" value="{{.System.OS}}" disabled></label>
+					<label>Architektur<input type="text" value="{{.System.Architecture}}" disabled></label>
+					<label>CPU-Modell<input type="text" value="{{.System.CPUModel}}" disabled></label>
+				</div>
+			</div>
+
+			{{range .ConfigPage.Sections}}{{template "config-section" .}}{{end}}
+{{end}}
+
+{{template "layout" .}}

@@ -1,0 +1,45 @@
+{{define "title"}}Netzwerk{{end}}
+{{define "subtitle"}}Laufzeitinformationen zu Leases, Hosts und Nachbarn.{{end}}
+{{define "content"}}
+
+			<div class="card">
+				<h2 class="section-title">DHCP-Leases</h2>
+				{{if .NetworkInfo.Leases}}
+				<table><thead><tr><th>Adresse</th><th>MAC</th><th>Name</th><th>Quelle</th></tr></thead><tbody>
+				{{range .NetworkInfo.Leases}}<tr><td>{{.Address}}</td><td>{{.MAC}}</td><td>{{.Name}}</td><td>{{.Source}}</td></tr>{{end}}
+				</tbody></table>
+				{{else}}<p class="empty-state">Keine DHCP-Leases gefunden oder Lease-Datei nicht lesbar.</p>{{end}}
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Bekannte Hosts</h2>
+				{{if .NetworkInfo.Hosts}}
+				<table><thead><tr><th>Name</th><th>Adresse</th><th>Quelle</th></tr></thead><tbody>
+				{{range .NetworkInfo.Hosts}}<tr><td>{{.Name}}</td><td>{{.Address}}</td><td>{{.Source}}</td></tr>{{end}}
+				</tbody></table>
+				{{else}}<p class="empty-state">Keine bekannten Hosts gefunden.</p>{{end}}
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Nachbarn (ARP / NDP)</h2>
+				{{if .NetworkInfo.Neighbors}}
+				<table><thead><tr><th>Interface</th><th>Adresse</th><th>MAC</th><th>Status</th></tr></thead><tbody>
+				{{range .NetworkInfo.Neighbors}}<tr><td>{{.Interface}}</td><td>{{.Address}}</td><td>{{.MAC}}</td><td>{{.State}}</td></tr>{{end}}
+				</tbody></table>
+				{{else}}<p class="empty-state">Keine ARP-/NDP-Nachbarn gefunden oder Daten nicht lesbar.</p>{{end}}
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">LLDP</h2>
+				{{if .NetworkInfo.LLDPNeighbors}}
+				<div class="table-scroll">
+				<table><thead><tr><th>Interface</th><th>Switch / Chassis</th><th>Management-IP</th><th>Port</th><th>Beschreibung</th><th>Alter</th><th>TTL</th></tr></thead><tbody>
+				{{range .NetworkInfo.LLDPNeighbors}}<tr><td>{{.Interface}}</td><td><strong>{{.ChassisName}}</strong><br><span class="text-dim">{{.ChassisMAC}}</span></td><td>{{.ManagementIP}}</td><td>{{.Port}}<br><span class="text-dim">{{.PortDescription}}</span></td><td>{{.Description}}</td><td>{{.Age}}</td><td>{{.TTL}} s</td></tr>{{end}}
+				</tbody></table>
+				</div>
+				<details class="raw-details"><summary>LLDP-Rohdaten</summary><pre class="raw">{{.NetworkInfo.LLDP}}</pre></details>
+				{{else}}<p class="empty-state">{{.NetworkInfo.LLDP}}</p>{{end}}
+			</div>
+{{end}}
+
+{{template "layout" .}}

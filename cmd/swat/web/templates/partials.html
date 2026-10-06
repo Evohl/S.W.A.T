@@ -1,0 +1,26 @@
+{{/* Fragments shared by several pages. */}}
+{{define "config-section"}}
+<div class="card">
+	<h2 class="section-title">{{.Title}}</h2>
+	{{if .Description}}<p class="section-description">{{.Description}}</p>{{end}}
+	{{if .RawText}}
+	<pre class="raw">{{.RawText}}</pre>
+	{{else if .Rows}}
+	<div class="table-scroll"><table class="config-table">
+		<thead><tr>{{range .Columns}}<th>{{.}}</th>{{end}}</tr></thead>
+		<tbody>{{range .Rows}}<tr>{{range .}}<td class="config-cell">{{if statusClass .}}<span class="badge {{statusClass .}}">{{statusLabel .}}</span>{{else}}{{.}}{{end}}</td>{{end}}</tr>{{end}}</tbody>
+	</table></div>
+	{{else}}
+	<div class="empty-state">{{.EmptyText}}</div>
+	{{end}}
+</div>
+{{end}}
+{{define "blockdevice"}}
+<tr>
+	<td class="storage-name depth-{{.Level}}">{{if eq .Level 0}}<strong>{{.Name}}</strong>{{else}}{{.Name}}{{end}}{{if .IsRAID}}<span class="storage-kind">Array</span>{{else if eq .Level 0}}<span class="storage-kind">Disk</span>{{else if eq .Type "raid member"}}<span class="storage-kind">Member</span>{{else}}<span class="storage-kind">Partition</span>{{end}}</td>
+	<td>{{if .Parent}}{{.Parent}}{{else}}—{{end}}</td>
+	<td>{{if .IsRAID}}RAID{{else if eq .Type "raid member"}}—{{else}}{{.Type}}{{end}}</td>
+	<td>{{.Size}}</td><td class="storage-usage">{{if .Usage}}<div><strong>{{.Used}}</strong> ({{.Usage}}) / {{.Available}} frei</div><div class="storage-row-meter" aria-hidden="true"><div class="storage-row-meter-used" style="width: {{.UsagePercent}}%"></div></div>{{else}}—{{end}}</td><td>{{.FSType}}</td><td>{{.Mountpoint}}</td>
+</tr>
+{{range .Children}}{{template "blockdevice" .}}{{end}}
+{{end}}

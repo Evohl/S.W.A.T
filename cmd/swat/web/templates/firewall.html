@@ -1,0 +1,44 @@
+{{define "title"}}Firewall (nftables){{end}}
+{{define "subtitle"}}Regeln, Chains und erkannte Tabellen.{{end}}
+{{define "content"}}
+
+			<div class="card">
+				<h2 class="section-title">Tabellen</h2>
+				<table>
+					<thead><tr><th>Family</th><th>Name</th><th>Handle</th></tr></thead>
+					<tbody>
+					{{range .Ruleset.Tables}}
+					<tr><td>{{.Family}}</td><td>{{.Name}}</td><td>{{.Handle}}</td></tr>
+					{{end}}
+					</tbody>
+				</table>
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Chains</h2>
+				<table>
+					<thead><tr><th>Table</th><th>Name</th><th>Hook</th><th>Policy</th></tr></thead>
+					<tbody>
+					{{range .Ruleset.Chains}}
+					<tr>
+						<td>{{.Table}}</td>
+						<td>{{.Name}}</td>
+						<td>{{.Hook}}</td>
+						<td>
+							{{if eq .Policy "accept"}}<span class="badge ok">{{.Policy}}</span>
+							{{else if eq .Policy "drop"}}<span class="badge fail">{{.Policy}}</span>
+							{{else}}{{.Policy}}{{end}}
+						</td>
+					</tr>
+					{{end}}
+					</tbody>
+				</table>
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Rohes Regelwerk</h2>
+				<pre class="raw">{{.Ruleset.RawText}}</pre>
+			</div>
+{{end}}
+
+{{template "layout" .}}

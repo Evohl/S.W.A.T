@@ -1,0 +1,22 @@
+{{define "title"}}Mein Profil{{end}}
+{{define "subtitle"}}S.W.A.T-Einstellungen und Sitzung.{{end}}
+{{define "header-actions"}}{{if .Authenticated}}<a class="button-secondary" href="/logout">Abmelden</a>{{end}}{{end}}
+{{define "content"}}
+			<div class="card">
+				<h2 class="section-title">Darstellung</h2>
+				<div class="profile-settings">
+					<label class="appearance-field" for="theme-select"><span>Theme</span><select id="theme-select" data-setting="theme"><option value="dark">Dark</option><option value="light">Light</option></select></label>
+					<label class="appearance-field" for="language-select"><span>Language</span><select id="language-select" data-setting="language"><option value="en">English</option><option value="de">Deutsch</option></select></label>
+				</div>
+			</div>
+			<div class="card">
+				<h2 class="section-title">Berechtigungen</h2>
+				{{if .RootAccess}}<div class="service-hint root-warning"><strong>Vollzugriff als Root</strong><p>Administrative Änderungen werden direkt mit Root-Rechten ausgeführt. Falsche Änderungen können das System beschädigen oder unbootbar machen.</p></div>{{else}}<p class="section-description">Diese Sitzung ist lesend. Für administrative Änderungen ist eine erneute Sudo-Authentifizierung erforderlich.</p>{{end}}
+				<table><thead><tr><th>Rolle</th><th>Aktueller Zugriff</th></tr></thead><tbody><tr><td>viewer</td><td><span class="badge ok">aktiv</span></td></tr><tr><td>root</td><td>{{if .RootAccess}}<span class="badge ok">aktiv</span>{{else}}<span class="badge muted">nicht aktiviert</span>{{end}}</td></tr></tbody></table>
+			</div>
+			<div class="card admin-access-card">
+				<div><h2 class="section-title">Privilegierter Zugang</h2>{{if .RootAccess}}<span class="badge ok">Root-Zugang aktiv</span><p class="text-dim">Sudo-Passwort bestätigt. Administrative Änderungen sind freigeschaltet.</p><form class="root-request-form" method="post" action="/admin/restrict-root"><input type="hidden" name="csrf" value="{{.CSRFToken}}"><button class="button-secondary" type="submit">Administrativen Zugang einschränken</button></form>{{else if .RootRequested}}<span class="badge warn">Root-Zugang angefordert</span><p class="text-dim">Die Sudo-Authentifizierung wurde angefordert.</p>{{else}}<span class="badge muted">Root-Zugang gesperrt</span><p class="text-dim">Freischaltung erfolgt nach erneuter Sudo-Authentifizierung.</p>{{end}}{{if .Authenticated}}{{if not .AdminAccess}}<form class="root-request-form" method="post" action="/admin/request-root"><input type="hidden" name="csrf" value="{{.CSRFToken}}"><label class="sudo-field">Sudo-Passwort<input name="sudo_password" type="password" autocomplete="current-password" required></label><button class="button" type="submit">Root-Zugang aktivieren</button></form>{{end}}{{else}}<a class="button" href="/login">Anmelden</a>{{end}}{{if .RootError}}<div class="service-hint auth-error"><strong>Authentifizierung fehlgeschlagen</strong><p>{{.RootError}}</p></div>{{end}}</div>
+			</div>
+{{end}}
+
+{{template "layout" .}}

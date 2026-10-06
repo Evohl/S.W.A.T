@@ -1,0 +1,50 @@
+{{/*
+Global page skeleton. A page template defines "title", "subtitle" and "content",
+may override "head", "toolbar", "header-actions" and "scripts", and ends with
+{{template "layout" .}}. Pages without navigation (login) use "auth-layout".
+*/}}
+{{define "layout"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>S.W.A.T — {{template "title" .}}</title>
+	<link rel="stylesheet" href="/static/style.css">
+	{{block "head" .}}{{end}}
+</head>
+<body>
+	<div class="layout">
+		{{template "nav" .}}
+		<main class="main">
+			{{block "toolbar" .}}{{end}}
+			<header class="page-header">
+				<div>
+					<h1 class="page-title">{{template "title" .}}</h1>
+					<p class="page-subtitle">{{template "subtitle" .}}</p>
+				</div>
+				{{block "header-actions" .}}{{end}}
+			</header>
+			{{template "content" .}}
+		</main>
+	</div>
+	<script src="/static/theme.js" defer></script>
+	<script src="/static/live-refresh.js" defer></script>
+	{{block "scripts" .}}{{end}}
+</body>
+</html>
+{{end}}
+
+{{define "auth-layout"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>S.W.A.T — {{template "title" .}}</title>
+	<link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="auth-page">
+	{{template "content" .}}
+	<script src="/static/theme.js" defer></script>
+</body>
+</html>
+{{end}}

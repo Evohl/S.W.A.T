@@ -1,0 +1,120 @@
+{{define "title"}}Zonen und Firewall{{end}}
+{{define "subtitle"}}Interfaces in Zonen gruppieren und festlegen, welche Zone mit welcher kommunizieren darf.{{end}}
+{{define "content"}}
+
+			{{if not .RootAccess}}<div class="service-hint"><strong>Diese Seite ist read-only</strong><p>Änderungen benötigen Root-Zugriff.</p></div>{{end}}
+			{{if .ZoneActionError}}<div class="service-hint auth-error"><strong>Aktion nicht ausgeführt</strong><p>{{.ZoneActionError}}</p></div>{{end}}
+			{{if .ZoneActionSuccess}}<div class="service-hint success-hint"><strong>Aktion ausgeführt</strong><p>{{.ZoneActionSuccess}}</p></div>{{end}}
+			{{if .ForwardingDisabled}}<div class="service-hint"><strong>IPv4-Forwarding ist aus</strong><p>Erlaubte Richtlinien zwischen Zonen wirken erst, wenn net.ipv4.ip_forward aktiviert ist.</p></div>{{end}}
+
+			{{if .Pending}}
+			<div class="service-hint auth-error">
+				<strong>Änderung wartet auf Bestätigung</strong>
+				<p>Wird um {{.Pending.Deadline.Format "15:04:05"}} automatisch zurückgenommen. Ist diese Seite nach dem Anwenden noch erreichbar, bitte bestätigen.</p>
+				<form method="post" action="/admin/zones/action">
+					<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+					<button class="button" type="submit" name="action" value="confirm">Bestätigen</button>
+					<button class="button-secondary danger-button" type="submit" name="action" value="rollback">Zurücknehmen</button>
+				</form>
+			</div>
+			{{end}}
+
+			<div class="card">
+				<h2 class="section-title">Kommunikation zwischen Zonen</h2>
+				<p class="secondary-text">Zeilen sind die Quelle, Spalten das Ziel. Nicht aufgeführter Verkehr zwischen Zonen ist gesperrt. Eine Zelle anklicken, um die Richtlinie zu bearbeiten.</p>
+				{{if .Matrix}}
+				<div class="table-scroll"><table>
+					<thead><tr><th>Von \ Nach</th>{{range .ZoneNames}}<th>{{.}}</th>{{end}}</tr></thead>
+					<tbody>{{range .Matrix}}<tr><td><strong>{{.From}}</strong></td>{{range .Cells}}<td>{{if .Self}}<span class="badge {{.Class}}">{{.Label}}</span>{{else}}<a href="/zones?from={{.From}}&amp;to={{.To}}#policy-form"><span class="badge {{.Class}}">{{.Label}}</span></a>{{if .Masq}} <span class="secondary-text">NAT</span>{{end}}{{end}}</td>{{end}}</tr>{{end}}</tbody>
+				</table></div>
+				{{else}}<div class="empty-state">Noch keine Zonen angelegt.</div>{{end}}
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Zonen</h2>
+				{{if .Zones}}
+				<div class="table-scroll"><table>
+					<thead><tr><th>Zone</th><th>Interfaces</th><th>Zugriff auf diesen Host</th><th class="table-actions-heading">Aktionen</th></tr></thead>
+					<tbody>{{range .Zones}}<tr>
+						<td>{{.Name}}</td>
+						<td>{{range .Interfaces}}{{.}}<br>{{else}}-{{end}}</td>
+						<td>{{if eq .Input "accept"}}<span class="badge warn">alles erlaubt</span>{{else}}{{if .ServicesText}}{{.ServicesText}}{{end}}{{if .PortsText}} {{.PortsText}}{{end}}{{if .Ping}} <span class="secondary-text">Ping</span>{{end}}{{if and (not .ServicesText) (not .PortsText)}}nur Systemverkehr{{end}}{{end}}</td>
+						<td class="table-actions">
+							<a class="button-secondary" href="/zones?zone={{.Name}}#zone-form">Bearbeiten</a>
+							<form method="post" action="/admin/zones/action"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><input type="hidden" name="name" value="{{.Name}}"><button class="button-secondary danger-button" type="submit" name="action" value="delete-zone" {{if not $.RootAccess}}disabled{{end}}>Löschen</button></form>
+						</td>
+					</tr>{{end}}</tbody>
+				</table></div>
+				{{else}}<div class="empty-state">Noch keine Zonen angelegt.</div>{{end}}
+			</div>
+
+			<div class="account-forms">
+				<div class="card" id="zone-form">
+					<h2 class="section-title">Zone anlegen oder ändern</h2>
+					<form class="form-grid" method="post" action="/admin/zones/action">
+						<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+						<label>Name<input name="name" type="text" value="{{.EditZone.Name}}" pattern="[a-z][a-z0-9_-]{0,15}" title="Kleinbuchstaben, Ziffern, _ und -, maximal 16 Zeichen" required {{if not .RootAccess}}disabled{{end}}></label>
+						<label>Zugriff auf diesen Host
+							<select name="input" {{if not .RootAccess}}disabled{{end}}>
+								<option value="restricted" {{if eq .EditZone.Input "restricted"}}selected{{end}}>nur ausgewählte Dienste</option>
+								<option value="accept" {{if eq .EditZone.Input "accept"}}selected{{end}}>alles erlaubt (vertrauenswürdig)</option>
+							</select>
+						</label>
+						<fieldset class="check-list"><legend>Interfaces</legend>
+							{{range .IfaceOptions}}<label class="checkbox-label"><input type="checkbox" name="interfaces" value="{{.Name}}" {{if index $.EditZone.Interfaces .Name}}checked{{end}} {{if not $.RootAccess}}disabled{{end}}> {{.Name}}{{if .Zone}} <span class="secondary-text">({{.Zone}})</span>{{end}}</label> {{end}}
+						</fieldset>
+						<fieldset class="check-list"><legend>Dienste (bei „nur ausgewählte Dienste“)</legend>
+							{{range .ServiceOptions}}<label class="checkbox-label"><input type="checkbox" name="services" value="{{.}}" {{if index $.EditZone.Services .}}checked{{end}} {{if not $.RootAccess}}disabled{{end}}> {{.}}</label> {{end}}
+						</fieldset>
+						<label>Weitere Ports<input name="ports" type="text" value="{{.EditZone.Ports}}" placeholder="tcp/8080, udp/10000-10100" {{if not .RootAccess}}disabled{{end}}></label>
+						<label class="checkbox-label"><input type="checkbox" name="ping" value="1" {{if .EditZone.Ping}}checked{{end}} {{if not .RootAccess}}disabled{{end}}> Ping erlauben</label>
+						<label class="checkbox-label"><input type="checkbox" name="isolated" value="1" {{if .EditZone.Isolated}}checked{{end}} {{if not .RootAccess}}disabled{{end}}> Interfaces dieser Zone untereinander isolieren</label>
+						<div class="form-actions"><button class="button" type="submit" name="action" value="save-zone" {{if not .RootAccess}}disabled{{end}}>Zone speichern</button></div>
+					</form>
+				</div>
+
+				<div class="card" id="policy-form">
+					<h2 class="section-title">Richtlinie zwischen Zonen</h2>
+					<form class="form-grid" method="post" action="/admin/zones/action">
+						<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+						<label>Von
+							<select name="from" required {{if not .RootAccess}}disabled{{end}}>{{range .ZoneNames}}<option {{if eq . $.EditPolicy.From}}selected{{end}}>{{.}}</option>{{end}}</select>
+						</label>
+						<label>Nach
+							<select name="to" required {{if not .RootAccess}}disabled{{end}}>{{range .ZoneNames}}<option {{if eq . $.EditPolicy.To}}selected{{end}}>{{.}}</option>{{end}}</select>
+						</label>
+						<label>Modus
+							<select name="mode" {{if not .RootAccess}}disabled{{end}}>
+								<option value="allow" {{if eq .EditPolicy.Mode "allow"}}selected{{end}}>alles erlauben</option>
+								<option value="limited" {{if eq .EditPolicy.Mode "limited"}}selected{{end}}>nur ausgewählte Dienste und Ports</option>
+							</select>
+						</label>
+						<fieldset class="check-list"><legend>Dienste (bei „nur ausgewählte“)</legend>
+							{{range .ServiceOptions}}<label class="checkbox-label"><input type="checkbox" name="services" value="{{.}}" {{if index $.EditPolicy.Services .}}checked{{end}} {{if not $.RootAccess}}disabled{{end}}> {{.}}</label> {{end}}
+						</fieldset>
+						<label>Weitere Ports<input name="ports" type="text" value="{{.EditPolicy.Ports}}" placeholder="tcp/443, udp/51820" {{if not .RootAccess}}disabled{{end}}></label>
+						<label class="checkbox-label"><input type="checkbox" name="masquerade" value="1" {{if .EditPolicy.Masquerade}}checked{{end}} {{if not .RootAccess}}disabled{{end}}> Quell-Adressen umschreiben (NAT)</label>
+						<div class="form-actions">
+							<button class="button" type="submit" name="action" value="save-policy" {{if not .RootAccess}}disabled{{end}}>Richtlinie speichern</button>
+							<button class="button-secondary danger-button" type="submit" name="action" value="delete-policy" {{if not .RootAccess}}disabled{{end}}>Richtlinie entfernen</button>
+						</div>
+					</form>
+				</div>
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Anwenden</h2>
+				<p class="secondary-text">Die Regeln werden mit nftables geprüft und geladen. Ohne Bestätigung innerhalb von {{.PendingSeconds}} Sekunden werden sie automatisch zurückgenommen, damit kein Zugriff verloren geht. Interfaces ohne Zone bleiben unberührt.</p>
+				<form method="post" action="/admin/zones/action">
+					<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+					<button class="button" type="submit" name="action" value="apply" {{if or (not .RootAccess) .Pending (not .Zones)}}disabled{{end}}>Anwenden</button>
+				</form>
+			</div>
+
+			<div class="card">
+				<h2 class="section-title">Vorschau des Regelwerks</h2>
+				{{if .ScriptNote}}<div class="service-hint auth-error"><p>{{.ScriptNote}}</p></div>{{else}}<pre class="raw">{{.Script}}</pre>{{end}}
+			</div>
+{{end}}
+
+{{template "layout" .}}

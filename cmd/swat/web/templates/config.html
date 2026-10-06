@@ -1,0 +1,84 @@
+{{define "title"}}{{.ConfigPage.Title}}{{end}}
+{{define "subtitle"}}{{.ConfigPage.Description}}{{end}}
+{{define "header-actions"}}
+	<div class="config-meta">
+		<span class="badge {{.ConfigPage.Status}}">{{.ConfigPage.StatusLabel}}</span>
+		<span class="meta-label">Owner: {{.ConfigPage.Owner}}</span>
+	</div>
+{{end}}
+{{define "content"}}
+
+			{{if .ConfigPage.ReadOnly}}
+			<div class="service-hint"><strong>Diese Seite ist read-only</strong>{{if not .RootAccess}}<p>Änderungen benötigen Root-Zugriff.</p>{{end}}{{if .ConfigPage.ReadOnlyReason}}<p>{{.ConfigPage.ReadOnlyReason}}</p>{{end}}</div>
+			{{end}}
+
+			{{if .ActionError}}<div class="service-hint auth-error"><strong>Aktion nicht ausgeführt</strong><p>{{.ActionError}}</p></div>{{end}}
+			{{if .ActionSuccess}}<div class="service-hint success-hint"><strong>Aktion ausgeführt</strong><p>{{.ActionSuccess}}</p></div>{{end}}
+
+			{{with .Forwarding}}
+			<div class="card">
+				<h2 class="section-title">IP-Forwarding</h2>
+				<p class="section-description">Erlaubt dem Host, Pakete zwischen Interfaces weiterzuleiten. Die Änderung wirkt sofort und wird in /etc/sysctl.d/90-swat-forwarding.conf gespeichert.</p>
+				<table class="config-table">
+					<thead><tr><th>Protokoll</th><th>Status</th><th class="table-actions-heading">Aktion</th></tr></thead>
+					<tbody>
+						{{range .}}<tr>
+							<td>{{.Label}}</td>
+							<td>{{if .Enabled}}<span class="badge ok">aktiv</span>{{else}}<span class="badge muted">inaktiv</span>{{end}}</td>
+							<td class="table-actions">
+								<form method="post" action="/admin/network/forwarding">
+									<input type="hidden" name="csrf" value="{{$.CSRFToken}}">
+									<input type="hidden" name="family" value="{{.Family}}">
+									<input type="hidden" name="enable" value="{{if .Enabled}}0{{else}}1{{end}}">
+									<button class="button-secondary" type="submit" {{if not $.RootAccess}}disabled{{end}}>{{if .Enabled}}Deaktivieren{{else}}Aktivieren{{end}}</button>
+								</form>
+							</td>
+						</tr>{{end}}
+					</tbody>
+				</table>
+			</div>
+			{{end}}
+
+			{{if .BridgeManager}}
+			<div class="card bridge-manager">
+				<div class="bridge-manager-heading">
+					<div><h2 class="section-title">Interfaces und Bridges</h2><p class="section-description">systemd-networkd erstellt die Bridge, weist Adressen zu und verbindet ausgewählte Interfaces als Ports.</p></div>
+					{{if .BridgeManager.Ready}}<span class="badge ok">Änderungen verfügbar</span>{{else}}<span class="badge warn">schreibgeschützt</span>{{end}}
+				</div>
+				{{if .BridgeManager.Reason}}<div class="service-hint"><p>{{.BridgeManager.Reason}}</p></div>{{end}}
+				{{if .BridgeManager.Pending}}
+				<div class="service-hint auth-error">
+					<strong>Netzwerkänderung wartet auf Bestätigung</strong>
+					<p>Ohne Bestätigung innerhalb von {{.BridgeManager.ConfirmSeconds}} Sekunden stellt SWAT die vorherigen Dateien wieder her.</p>
+					<div class="button-row">
+						<form method="post" action="/admin/network/bridge"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><button class="button" name="action" value="confirm" type="submit" {{if not $.RootAccess}}disabled{{end}}>Bestätigen</button></form>
+						<form method="post" action="/admin/network/bridge"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><button class="button-secondary danger-button" name="action" value="rollback" type="submit" {{if not $.RootAccess}}disabled{{end}}>Zurücknehmen</button></form>
+					</div>
+				</div>
+				{{end}}
+				{{if .BridgeManager.Bridges}}
+				<div class="table-scroll"><table class="config-table"><thead><tr><th>Bridge</th><th>Ports</th><th>Adressen</th><th>DHCP</th><th class="table-actions-heading">Aktionen</th></tr></thead><tbody>
+					{{range .BridgeManager.Bridges}}<tr><td><strong>{{.Name}}</strong></td><td>{{.PortsText}}</td><td>{{if .DHCP}}dynamisch{{else}}{{.AddressesText}}{{end}}</td><td>{{if .DHCP}}ja{{else}}nein{{end}}</td><td class="table-actions"><a class="button-secondary" href="/network?bridge={{urlquery .Name}}#bridge-form">Bearbeiten</a><form method="post" action="/admin/network/bridge"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><input type="hidden" name="name" value="{{.Name}}"><button class="button-secondary danger-button" name="action" value="delete" type="submit" {{if not $.RootAccess}}disabled{{end}}>Entfernen</button></form></td></tr>{{end}}
+				</tbody></table></div>
+				{{else}}<p class="empty-state">Noch keine SWAT-Bridges definiert.</p>{{end}}
+
+				<form class="form-grid bridge-form" id="bridge-form" method="post" action="/admin/network/bridge">
+					<input type="hidden" name="csrf" value="{{$.CSRFToken}}">
+					<label>Bridge-Name<input name="name" value="{{.BridgeManager.Edit.Name}}" placeholder="br-lan" pattern="br[-A-Za-z0-9_.]{1,12}" required {{if not $.RootAccess}}disabled{{end}}></label>
+					<fieldset class="check-list bridge-port-list"><legend>Port-Interfaces</legend>
+						{{range .BridgeManager.Interfaces}}<label class="checkbox-label"><input type="checkbox" name="ports" value="{{.Name}}" {{if .Selected}}checked{{end}} {{if or (not $.RootAccess) .Unavailable}}disabled{{end}}> {{.Name}}{{if .Unavailable}} <span class="secondary-text">({{.Unavailable}})</span>{{end}}</label>{{else}}<span class="secondary-text">Keine geeigneten Interfaces erkannt.</span>{{end}}
+					</fieldset>
+					<label class="checkbox-label"><input type="checkbox" name="dhcp" value="1" {{if .BridgeManager.Edit.DHCP}}checked{{end}} {{if not $.RootAccess}}disabled{{end}}> Adresse per DHCP beziehen</label>
+					<label>Statische Adressen<input name="addresses" value="{{.BridgeManager.Edit.AddressesText}}" placeholder="192.168.10.1/24, fd10::1/64" {{if not $.RootAccess}}disabled{{end}}></label>
+					<label>Gateway<input name="gateway" value="{{.BridgeManager.Edit.Gateway}}" placeholder="192.168.10.254" {{if not $.RootAccess}}disabled{{end}}></label>
+					<label>DNS-Server<input name="dns" value="{{.BridgeManager.Edit.DNSText}}" placeholder="192.168.10.2, fd10::2" {{if not $.RootAccess}}disabled{{end}}></label>
+					<label class="checkbox-label"><input type="checkbox" name="stp" value="1" {{if .BridgeManager.Edit.STP}}checked{{end}} {{if not $.RootAccess}}disabled{{end}}> Spanning Tree (STP)</label>
+					<div class="form-actions"><button class="button-secondary" name="action" value="save" type="submit" {{if not $.RootAccess}}disabled{{end}}>Bridge speichern</button><button class="button" name="action" value="apply" type="submit" {{if or (not $.RootAccess) (not .BridgeManager.Ready) .BridgeManager.Pending}}disabled{{end}}>Anwenden</button></div>
+				</form>
+			</div>
+			{{end}}
+
+			{{range .ConfigPage.Sections}}{{template "config-section" .}}{{end}}
+{{end}}
+
+{{template "layout" .}}
