@@ -15,6 +15,31 @@
 			{{if .ActionError}}<div class="service-hint auth-error"><strong>Aktion nicht ausgeführt</strong><p>{{.ActionError}}</p></div>{{end}}
 			{{if .ActionSuccess}}<div class="service-hint success-hint"><strong>Aktion ausgeführt</strong><p>{{.ActionSuccess}}</p></div>{{end}}
 
+			{{if .InterfaceNames}}
+			<div class="card">
+				<h2 class="section-title">Stabile Netzwerknamen</h2>
+				<p class="section-description">Jeder physische Adapter wird über seine permanente MAC-Adresse erkannt. Der Name wird beim Geräteauftauchen durch systemd-udev gesetzt und kann deshalb auch nach einem Kartenumbau stabil bleiben.</p>
+				<div class="service-hint"><strong>Vorschau, noch nicht angewendet</strong><p>Die Zuordnung wird in SWAT gespeichert. Systemdateien werden erst nach Einrichtung der Neustart-Rücknahme und gemeinsamen Aktualisierung von Netzwerk- und Firewallregeln geschrieben.</p></div>
+				{{if .InterfaceNames.ConfigError}}<div class="service-hint auth-error"><p>{{.InterfaceNames.ConfigError}}</p></div>{{end}}
+				{{if .InterfaceNames.Rows}}
+				<form method="post" action="/admin/network/interface-names">
+					<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+					<div class="table-scroll"><table class="config-table"><thead><tr><th>Aktueller Name</th><th>Permanente MAC</th><th>Hardware</th><th>Gewünschter Name</th></tr></thead><tbody>
+					{{range .InterfaceNames.Rows}}<tr>
+						<td>{{if .CurrentName}}{{.CurrentName}}{{else}}nicht verbunden{{end}}</td>
+						<td><code>{{.PermanentMAC}}</code><input type="hidden" name="permanent_mac" value="{{.PermanentMAC}}"></td>
+						<td>{{.Hardware}}</td>
+						<td><input name="desired_name" value="{{.DesiredName}}" maxlength="15" pattern="[A-Za-z0-9_-]{1,15}" required {{if not $.RootAccess}}disabled{{end}}></td>
+					</tr>{{end}}
+					</tbody></table></div>
+					<div class="form-actions"><button class="button-secondary" type="submit" {{if or (not .RootAccess) .InterfaceNames.ConfigError}}disabled{{end}}>Namen speichern</button></div>
+				</form>
+				{{else}}<p class="empty-state">Keine physischen Adapter mit permanenter MAC-Adresse erkannt.</p>{{end}}
+				{{if .InterfaceNames.PreviewError}}<div class="service-hint auth-error"><p>{{.InterfaceNames.PreviewError}}. Korrigieren Sie den gewünschten Namen, um eine gültige Vorschau zu erhalten.</p></div>{{end}}
+				{{if .InterfaceNames.Preview}}<details><summary>systemd.link-Vorschau</summary><pre class="raw">{{.InterfaceNames.Preview}}</pre></details>{{end}}
+			</div>
+			{{end}}
+
 			{{with .Forwarding}}
 			<div class="card">
 				<h2 class="section-title">IP-Forwarding</h2>

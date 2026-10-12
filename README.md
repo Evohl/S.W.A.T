@@ -48,7 +48,7 @@ Privileged operations use explicit allowlisted commands and are audited.
 All application pages and APIs require an active login session; only the login
 page, logout endpoint, and static assets are public.
 
-The permission boundary is documented in [docs/permissions.md](docs/permissions.md).
+The permission boundary is documented in [docs/permissions.md](docs/permissions.md). Planned homeserver integration requirements are in [docs/homeserver-requirements.md](docs/homeserver-requirements.md).
 
 ## Local development
 
@@ -59,20 +59,31 @@ go build -o swat ./cmd/swat
 
 Open `http://localhost:8443/`.
 
-## Homeserver test deployment
+## Arch VM test deployment
 
-Build, upload, and start the current binary on the homeserver with:
+Build, upload, and start the current binary on an explicitly selected Arch test
+VM with:
 
 ```bash
-./scripts/deploy-test.sh
+./scripts/deploy-test.sh user@arch-test-vm
 ```
 
-The script opens a TTY for `sudo`, so the homeserver password can be entered
-normally. The defaults are `evohl@homeserver`, `/tmp/swat-server`, and
-`10.10.0.1:18443`. Override them with `SWAT_REMOTE_HOST`,
-`SWAT_REMOTE_BINARY`, or `SWAT_REMOTE_ADDR` when needed.
+The destination is required; the script has no default host. It opens a TTY
+for `sudo`. The remote binary defaults to `/tmp/swat-server` and the listen
+address to `10.10.0.1:18443`; override those with `SWAT_REMOTE_BINARY` and
+`SWAT_REMOTE_ADDR` when appropriate for the VM. Do not use the physical host
+as the test destination.
 
 SWAT should run on the server as a dedicated unprivileged system user. Privileged changes are limited to validated, allowlisted commands and are never passed through arbitrary shell input.
+
+The Nginx administration page currently stores and previews structured virtual
+hosts only. It does not write `/etc/nginx` or reload Nginx; see
+[`docs/nginx-configuration.md`](docs/nginx-configuration.md).
+
+Optional service profiles and their package dependencies are centralized under
+`/modules`; package installation is handled by the narrow Arch-only helper.
+See [`docs/modules.md`](docs/modules.md) for its permissions and service-start
+rules.
 
 ## Build and install an Arch package
 

@@ -17,6 +17,7 @@ func TestPagesRenderThroughLayout(t *testing.T) {
 		"/vms":          handleVMs,
 		"/logs":         handleLogs,
 		"/network":      handleNetwork,
+		"/modules":      handleModules,
 		"/network-info": handleNetworkInfo,
 		"/firewall":     handleFirewall,
 		"/libvirt":      handleLibvirt,

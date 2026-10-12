@@ -1,0 +1,26 @@
+[Unit]
+Description=S.W.A.T allowlisted module package installer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=swat
+RuntimeDirectory=swat-privileged
+RuntimeDirectoryMode=0750
+ExecStart=/usr/lib/swat/swat-privileged
+Restart=on-failure
+RestartSec=3s
+UMask=0007
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

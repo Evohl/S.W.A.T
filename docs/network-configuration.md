@@ -15,6 +15,43 @@ SWAT verwaltet Netzwerk nicht als eigenen Daemon. Es modelliert den gewünschten
 
 SWAT erkennt konkurrierende Besitzer und schreibt keine Dateien eines fremden Besitzers um.
 
+## Stabile Namen physischer Adapter
+
+Die Netzwerkseite zeigt den aktuellen Kernel-Namen, die aktuelle und permanente
+MAC-Adresse sowie die von udev erkannte Hardwarebezeichnung. Für neue
+SWAT-verwaltete Installationen soll eine MAC-basierte Zuordnung über
+`systemd.link` der Standard sein: jede Datei matcht genau eine
+`PermanentMACAddress` und setzt einen eindeutigen, vom Benutzer editierbaren
+Namen. Die generierten Dateien müssen vor `99-default.link` sortieren. Als
+Ausgangswert bleibt der beim Einrichten angezeigte Systemname erhalten.
+Die Netzwerkseite speichert die Zuordnung derzeit als versionierten Desired
+State unter `SWAT_STATE_DIR/network-interface-names.json` und zeigt die
+generierten Dateien als Vorschau. Sie schreibt diese Zuordnungen noch nicht
+nach `/etc/systemd/network`; Apply bleibt bis zu einer rebootfesten
+Netzwerk-/Firewalltransaktion deaktiviert.
+
+`.link`-Dateien werden beim Auftauchen des Geräts angewendet und benennen ein
+aktives Interface nicht gefahrlos live um. Eine Namensänderung wird deshalb als
+Neustart-pflichtige Transaktion geplant. Vor dem Anwenden müssen SWAT-eigene
+`.network`-Dateien, Bridge-Port-Zuordnungen und Firewall-Zonen gemeinsam auf den
+neuen Namen umgestellt und validiert werden. Die nftables-Zonen matchen exakte
+Interface-Namen; ein nicht aktualisierter Name kann das Interface aus der
+verwalteten Zone herausfallen lassen. Fremde `.link`-Dateien, doppelte MACs,
+Namenskollisionen und fehlende permanente MAC-Adressen blockieren die
+automatische Zuordnung. SWAT darf weder fremde Link-Dateien überschreiben noch
+ein Interface sofort live umbenennen.
+
+Der interne Writer schreibt nur in das feste, dienstbesitzende
+Konfigurationsverzeichnis, das von seinem Aufrufer ausgewählt wird; dieser Pfad
+darf niemals aus Anforderungsdaten stammen. Er prüft alle Ziel- und
+Löschdateien vor der ersten Änderung, akzeptiert nur reguläre Dateien mit
+sowohl `Managed-By: SWAT` als auch der erwarteten `SWAT-Config-ID`, schreibt
+einzelne Dateien per temporärer Datei und atomarem Rename und stellt bereits
+bearbeitete Dateien bei einem späteren Fehler wieder her. Er aktiviert keine
+Konfiguration, lädt udev nicht neu und ersetzt keine rebootfeste
+Rollback-Transaktion. Privilegierte Handler dürfen ihn daher erst nach
+Einführung dieser Transaktion an `/etc/systemd/network` anbinden.
+
 ## Erkennung der SWAT-Verwaltung
 
 Der aktive native Dienst allein bedeutet nicht, dass SWAT die Konfiguration

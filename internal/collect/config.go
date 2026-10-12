@@ -38,7 +38,15 @@ func NetworkConfig(ifaces []Interface, runtime NetworkRuntime) ConfigPage {
 		for _, addr := range iface.Addrs {
 			addresses = append(addresses, addr.Local+"/"+strconv.Itoa(addr.PrefixLen)+" ("+addr.Family+")")
 		}
-		rows = append(rows, []string{iface.Name, interfaceState(iface), strings.Join(addresses, "\n")})
+		permanentMAC := iface.PermanentAddress
+		if permanentMAC == "" {
+			permanentMAC = "nicht verfügbar"
+		}
+		hardware := iface.Hardware
+		if hardware == "" {
+			hardware = "-"
+		}
+		rows = append(rows, []string{iface.Name, iface.Address, permanentMAC, hardware, interfaceState(iface), strings.Join(addresses, "\n")})
 	}
 
 	page := ConfigPage{
@@ -50,10 +58,11 @@ func NetworkConfig(ifaces []Interface, runtime NetworkRuntime) ConfigPage {
 		StatusLabel: configStatusLabel(len(rows) > 0),
 		ReadOnly:    true,
 		Sections: []ConfigSection{{
-			Title:     "Interfaces",
-			Columns:   []string{"Interface", "Status", "Adressen"},
-			Rows:      rows,
-			EmptyText: "Keine Netzwerk-Interfaces gefunden.",
+			Title:       "Netzwerkadapter",
+			Description: "Systemname, aktuelle und permanente MAC-Adresse sowie erkannte Hardware. Permanente MAC-Adressen dienen als stabile Geräteidentität.",
+			Columns:     []string{"Systemname", "MAC-Adresse (aktuell)", "Permanente MAC", "Hardwarebezeichnung", "Status", "Adressen"},
+			Rows:        rows,
+			EmptyText:   "Keine Netzwerk-Interfaces gefunden.",
 		}},
 	}
 	ownership := ServiceOwnerships()

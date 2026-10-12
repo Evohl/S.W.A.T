@@ -1,0 +1,32 @@
+{{define "title"}}Nginx{{end}}
+{{define "subtitle"}}Strukturierte vHosts und Reverse-Proxies{{end}}
+{{define "header-actions"}}<span class="badge muted">Desired State</span>{{end}}
+{{define "content"}}
+			<div class="service-hint"><strong>Vorschau, noch nicht angewendet</strong><p>SWAT speichert und validiert vHosts, schreibt sie aber noch nicht nach /etc/nginx und führt keinen Reload aus.</p></div>
+			{{if .Error}}<div class="service-hint auth-error"><strong>Aktion nicht ausgeführt</strong><p>{{.Error}}</p></div>{{end}}
+			{{if .Success}}<div class="service-hint success-hint"><strong>Desired State gespeichert</strong><p>{{.Success}}</p></div>{{end}}
+			<section class="card">
+				<h2 class="section-title">vHosts</h2>
+				{{if .Sites}}
+				<div class="table-scroll"><table class="config-table"><thead><tr><th>Servernamen</th><th>Modus</th><th>Ziel</th><th>TLS</th><th class="table-actions-heading">Aktionen</th></tr></thead><tbody>
+				{{range .Sites}}<tr><td><strong>{{.Name}}</strong>{{if ne .Names .Name}}<br>{{.Names}}{{end}}</td><td>{{if eq .Mode "proxy"}}Reverse-Proxy{{else}}Statische Site{{end}}</td><td>{{.Target}}</td><td>{{if .TLS}}aktiv{{else}}nein{{end}}</td><td class="table-actions"><a class="button-secondary" href="/nginx?edit={{urlquery .Name}}">Bearbeiten</a><form method="post" action="/admin/nginx"><input type="hidden" name="csrf" value="{{$.CSRFToken}}"><input type="hidden" name="action" value="delete"><input type="hidden" name="original_name" value="{{.Name}}"><button class="button-secondary danger-button" type="submit" {{if not $.RootAccess}}disabled{{end}}>Entfernen</button></form></td></tr>{{end}}
+				</tbody></table></div>
+				{{else}}<p class="empty-state">Noch keine vHosts definiert.</p>{{end}}
+			</section>
+			<section class="card">
+				<h2 class="section-title">{{if .Form.OriginalName}}vHost bearbeiten{{else}}vHost hinzufügen{{end}}</h2>
+				<form class="form-grid" method="post" action="/admin/nginx">
+					<input type="hidden" name="csrf" value="{{.CSRFToken}}"><input type="hidden" name="action" value="save"><input type="hidden" name="original_name" value="{{.Form.OriginalName}}">
+					<label>Servernamen<input name="server_names" value="{{.Form.ServerNames}}" placeholder="app.example.test, www.example.test" required {{if not .RootAccess}}disabled{{end}}></label>
+					<label>Modus<select name="mode" {{if not .RootAccess}}disabled{{end}}><option value="proxy" {{if eq .Form.Mode "proxy"}}selected{{end}}>Reverse-Proxy</option><option value="static" {{if eq .Form.Mode "static"}}selected{{end}}>Statische Site</option></select></label>
+					<label>Upstream (HTTP[S]://Host:Port)<input name="upstream" value="{{.Form.Upstream}}" placeholder="http://127.0.0.1:8080" {{if not .RootAccess}}disabled{{end}}></label>
+					<label>Dokumentenpfad unter /srv/www<input name="document_root" value="{{.Form.DocumentRoot}}" placeholder="/srv/www/example" {{if not .RootAccess}}disabled{{end}}></label>
+					<label class="checkbox-label"><input type="checkbox" name="tls" value="1" {{if .Form.TLS}}checked{{end}} {{if not .RootAccess}}disabled{{end}}> Vorhandene TLS-Zertifikate verwenden</label>
+					<label>Zertifikatspfad<input name="certificate" value="{{.Form.Certificate}}" placeholder="/etc/letsencrypt/live/example/fullchain.pem" {{if not .RootAccess}}disabled{{end}}></label>
+					<label>Schlüsselpfad<input name="key" value="{{.Form.Key}}" placeholder="/etc/letsencrypt/live/example/privkey.pem" {{if not .RootAccess}}disabled{{end}}></label>
+					<div class="form-actions"><button class="button-secondary" type="submit" {{if not .RootAccess}}disabled{{end}}>Desired State speichern</button></div>
+				</form>
+			</section>
+			<section class="card"><h2 class="section-title">Generierte Konfiguration</h2><pre class="raw">{{.Preview}}</pre></section>
+{{end}}
+{{template "layout" .}}

@@ -85,16 +85,17 @@ session and CSRF validation, validate target values, use fixed command argument
 lists, and append audit records. They do not grant arbitrary command or file
 access.
 
-The Arch package service sets `SWAT_READ_ONLY=1`. In this mode root access is
-hidden from the session view, root requests are rejected, and both sudo command
-runners refuse execution. The service runs as the unprivileged `swat` user and
-does not install sudoers permissions. Do not disable this mode until a
-separately reviewed privileged helper or Polkit boundary replaces the current
-sudo command path.
-
-The Arch package service sets `SWAT_READ_ONLY=1`. In this mode root access is
-hidden from the session view, root requests are rejected, and both sudo command
-runners refuse execution. The service runs as the unprivileged `swat` user and
-does not install sudoers permissions. Do not remove read-only mode until a
-separately reviewed privileged helper or Polkit boundary replaces the current
-sudo command path.
+The Arch package service sets `SWAT_READ_ONLY=1`. Generic root access is hidden,
+root requests are rejected, and both sudo command runners refuse execution.
+The service runs as the unprivileged `swat` user and installs no sudoers rules.
+The sole narrow setup exception is `swat-privileged`: a root-owned Unix-socket
+helper that accepts only compiled module IDs from peer UID `swat`. It performs
+its own check for `root` or membership in Arch's `wheel` administrator group,
+then authenticates the account independently through PAM, resolves package
+names from the compiled registry, and can only install that fixed Arch package
+allowlist. The sudo password is
+transmitted only over the local socket and is not logged or stored. The helper
+has no generic command, path, or systemd operation. Module services remain
+stopped until their configuration is validated and applied. Keep generic
+read-only mode until each later service-specific apply operation has its own
+reviewed allowlist and recovery behavior.

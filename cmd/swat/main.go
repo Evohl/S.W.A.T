@@ -107,11 +107,16 @@ func main() {
 	mux.HandleFunc("/libvirt-resource-action", handleLibvirtResourceAction)
 	mux.HandleFunc("/logs", handleLogs)
 	mux.HandleFunc("/network", handleNetwork)
+	mux.HandleFunc("/nginx", handleNginx)
+	mux.HandleFunc("/admin/nginx", handleNginxAction)
+	mux.HandleFunc("/modules", handleModules)
+	mux.HandleFunc("/admin/modules", handleModulesAction)
 	mux.HandleFunc("/network-info", handleNetworkInfo)
 	mux.HandleFunc("/firewall", handleFirewall)
 	mux.Handle("/zones", http.RedirectHandler("/firewall", http.StatusMovedPermanently))
 	mux.HandleFunc("/admin/zones/action", handleZonesAction)
 	mux.HandleFunc("/admin/network/forwarding", handleNetworkForwarding)
+	mux.HandleFunc("/admin/network/interface-names", handleNetworkInterfaceNames)
 	mux.HandleFunc("/admin/network/bridge", handleNetworkBridgeAction)
 	mux.HandleFunc("/admin/system/setting", handleSystemSetting)
 	mux.HandleFunc("/libvirt", handleLibvirt)
@@ -157,6 +162,7 @@ func render(w http.ResponseWriter, r *http.Request, page, name string, data map[
 	data["AdminAccess"] = auth.AdminAccess
 	data["CSRFToken"] = auth.CSRFToken
 	data["ReadOnlyMode"] = readOnlyMode()
+	data["ModulePages"] = modulePageFlags()
 	set, ok := pages[name]
 	if !ok {
 		http.Error(w, "Template nicht gefunden: "+name, http.StatusInternalServerError)

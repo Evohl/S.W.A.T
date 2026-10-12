@@ -107,6 +107,10 @@ func customRows(ports []zones.Port) []customRow {
 }
 
 func handleFirewall(w http.ResponseWriter, r *http.Request) {
+	if !modulePageReady("firewall") {
+		http.Redirect(w, r, "/modules?required=firewall", http.StatusSeeOther)
+		return
+	}
 	renderZones(w, r, "", "")
 }
 
@@ -234,6 +238,10 @@ func handleZonesAction(w http.ResponseWriter, r *http.Request) {
 	session, err := accountActionSession(r)
 	if err != nil {
 		renderZones(w, r, err.Error(), "")
+		return
+	}
+	if !modulePageReady("firewall") {
+		http.Redirect(w, r, "/modules?required=firewall", http.StatusSeeOther)
 		return
 	}
 	dir := zones.StateDir()

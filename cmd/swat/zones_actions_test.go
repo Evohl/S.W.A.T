@@ -6,10 +6,34 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"swat/internal/modules"
 )
 
 func adminRequest(t *testing.T, method, target string, form url.Values) *http.Request {
 	t.Helper()
+	previousInspector := inspectModuleCatalog
+	definitions := modules.Catalog()
+	ids := make([]string, 0, len(definitions))
+	installed := make(map[string]bool)
+	for _, definition := range definitions {
+		ids = append(ids, definition.ID)
+		for _, dependency := range definition.Packages {
+			installed[dependency.Name] = true
+		}
+	}
+	selected, err := modules.NormalizeSelection(ids)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statuses, err := modules.Statuses(modules.Selection{Version: modules.CurrentVersion, Selected: selected}, installed, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspectModuleCatalog = func(string) ([]modules.Status, modules.Selection, error) {
+		return statuses, modules.Selection{Version: modules.CurrentVersion, Selected: selected}, nil
+	}
+	t.Cleanup(func() { inspectModuleCatalog = previousInspector })
 	sessionID, session, err := startSession("tester")
 	if err != nil {
 		t.Fatal(err)

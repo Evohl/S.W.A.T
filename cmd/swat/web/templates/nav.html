@@ -22,10 +22,12 @@
 
 	<div class="nav-section nav-section-admin">
 		<div class="nav-heading">Administration</div>
+		<a class="nav-item {{if eq .Page "modules"}}active{{end}}" href="/modules"><span class="dot"></span>Module und Dienste</a>
 		<a class="nav-item {{if eq .Page "system"}}active{{end}}" href="/system"><span class="dot"></span>System</a>
 		<a class="nav-item {{if eq .Page "users"}}active{{end}}" href="/users"><span class="dot"></span>Benutzer</a>
-		<a class="nav-item {{if eq .Page "network"}}active{{end}}" href="/network"><span class="dot"></span>Netzwerk</a>
-		<a class="nav-item {{if eq .Page "firewall"}}active{{end}}" href="/firewall"><span class="dot"></span>Firewall</a>
+		{{if index .ModulePages "network"}}<a class="nav-item {{if eq .Page "network"}}active{{end}}" href="/network"><span class="dot"></span>Netzwerk</a>{{end}}
+		{{if index .ModulePages "nginx"}}<a class="nav-item {{if eq .Page "nginx"}}active{{end}}" href="/nginx"><span class="dot"></span>Nginx</a>{{end}}
+		{{if index .ModulePages "firewall"}}<a class="nav-item {{if eq .Page "firewall"}}active{{end}}" href="/firewall"><span class="dot"></span>Firewall</a>{{end}}
 		<a class="nav-item {{if eq .Page "vms"}}active{{end}}" href="/vms"><span class="dot"></span>Virtual Machines</a>
 		{{if not .Authenticated}}<a class="nav-item" href="/login"><span class="dot"></span>Admin anmelden</a>{{end}}
 	</div>

@@ -49,7 +49,9 @@ type bridgeInterfaceOption struct {
 }
 
 func bridgeStatePath() string { return filepath.Join(zones.StateDir(), "network-bridges.json") }
-func appliedBridgePath() string { return filepath.Join(zones.StateDir(), "network-bridges-applied.json") }
+func appliedBridgePath() string {
+	return filepath.Join(zones.StateDir(), "network-bridges-applied.json")
+}
 
 func bridgeManagerStatus() (bool, string) {
 	runtime := collect.NetworkRuntimeStatus()
@@ -270,6 +272,10 @@ func handleNetworkBridgeAction(w http.ResponseWriter, r *http.Request) {
 	session, err := accountActionSession(r)
 	if err != nil {
 		renderNetwork(w, r, err.Error(), "")
+		return
+	}
+	if !modulePageReady("network") {
+		http.Redirect(w, r, "/modules?required=network", http.StatusSeeOther)
 		return
 	}
 	action := r.FormValue("action")
@@ -558,7 +564,8 @@ func confirmBridgeConfig(session authSession) (string, error) {
 	}
 	pending.Timer.Stop()
 	config, err := netcfg.Load(bridgeStatePath())
-	if err != nil {		return "", err
+	if err != nil {
+		return "", err
 	}
 	if err := netcfg.Save(appliedBridgePath(), config); err != nil {
 		return "", err

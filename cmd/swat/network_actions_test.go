@@ -6,6 +6,9 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"swat/internal/collect"
+	"swat/internal/netcfg"
 )
 
 func TestNetworkPageShowsForwardingControls(t *testing.T) {
@@ -13,10 +16,84 @@ func TestNetworkPageShowsForwardingControls(t *testing.T) {
 	response := httptest.NewRecorder()
 	handleNetwork(response, adminRequest(t, http.MethodGet, "/network", nil))
 	body := response.Body.String()
-	for _, want := range []string{"IP-Forwarding", `name="family" value="ipv4"`, `name="family" value="ipv6"`, "/admin/network/forwarding", "Interfaces und Bridges", `name="addresses"`, `name="dhcp"`, `name="ports"`} {
+	for _, want := range []string{"IP-Forwarding", `name="family" value="ipv4"`, `name="family" value="ipv6"`, "/admin/network/forwarding", "Netzwerkadapter", "Permanente MAC", "Hardwarebezeichnung", "Interfaces und Bridges", `name="addresses"`, `name="dhcp"`, `name="ports"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("network page missing %q", want)
 		}
+	}
+}
+
+func TestUpdateInterfaceNameBindingsRequiresKnownMACsAndUniqueSafeNames(t *testing.T) {
+	interfaces := []collect.Interface{{Name: "enp1s0", PermanentAddress: "02:00:00:00:00:01"}}
+	updated, err := updateInterfaceNameBindings(interfaces, []string{"02:00:00:00:00:01"}, []string{"wan0"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated) != 1 || updated[0].Name != "wan0" {
+		t.Fatalf("updated bindings = %#v", updated)
+	}
+	if _, err := updateInterfaceNameBindings(interfaces, []string{"02:00:00:00:00:99"}, []string{"wan0"}, nil); err == nil {
+		t.Fatal("unknown MAC was accepted")
+	}
+	if _, err := updateInterfaceNameBindings(interfaces, []string{"02:00:00:00:00:01"}, []string{"eth0"}, nil); err == nil {
+		t.Fatal("kernel-colliding name was accepted")
+	}
+	if _, err := updateInterfaceNameBindings(
+		append(interfaces, collect.Interface{Name: "br-lan"}),
+		[]string{"02:00:00:00:00:01"}, []string{"br-lan"}, nil,
+	); err == nil {
+		t.Fatal("name colliding with a virtual interface was accepted")
+	}
+}
+
+func TestNetworkInterfaceNameActionRequiresAdminAndCSRF(t *testing.T) {
+	t.Setenv("SWAT_STATE_DIR", t.TempDir())
+	t.Setenv("SWAT_READ_ONLY", "0")
+	sessionID, _, err := startSession("viewer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/admin/network/interface-names", strings.NewReader(""))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.AddCookie(&http.Cookie{Name: sessionCookie, Value: sessionID})
+	response := httptest.NewRecorder()
+	handleNetworkInterfaceNames(response, request)
+	if !strings.Contains(response.Body.String(), "Root-Zugriff erforderlich") {
+		t.Fatalf("non-admin request was not rejected: %.300s", response.Body.String())
+	}
+
+	adminRequest := adminRequest(t, http.MethodPost, "/admin/network/interface-names", url.Values{})
+	adminRequest.Form.Set("csrf", "invalid")
+	response = httptest.NewRecorder()
+	handleNetworkInterfaceNames(response, adminRequest)
+	if !strings.Contains(response.Body.String(), "Ungültige Anfrage") {
+		t.Fatalf("invalid CSRF token was not rejected: %.300s", response.Body.String())
+	}
+}
+
+func TestInterfaceNamesPageShowsDesiredStateEditor(t *testing.T) {
+	t.Setenv("SWAT_STATE_DIR", t.TempDir())
+	response := httptest.NewRecorder()
+	handleNetwork(response, adminRequest(t, http.MethodGet, "/network", nil))
+	body := response.Body.String()
+	for _, want := range []string{"Stabile Netzwerknamen", "/admin/network/interface-names", "Permanente MAC", "Vorschau, noch nicht angewendet"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("network page missing %q", want)
+		}
+	}
+}
+
+func TestSavedInterfaceNameBindingsRetainDisconnectedAdapters(t *testing.T) {
+	updated, err := updateInterfaceNameBindings(
+		[]collect.Interface{{Name: "enp1s0", PermanentAddress: "02:00:00:00:00:01"}},
+		[]string{"02:00:00:00:00:01"}, []string{"wan0"},
+		[]netcfg.InterfaceNameBinding{{PermanentMAC: "02:00:00:00:00:02", Name: "lan0"}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated) != 2 {
+		t.Fatalf("updated bindings = %#v, want connected and disconnected adapters retained", updated)
 	}
 }
 

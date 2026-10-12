@@ -1,0 +1,38 @@
+{{define "title"}}Module und Dienste{{end}}
+{{define "subtitle"}}Funktionen auswählen und ihre Paket- sowie Serviceabhängigkeiten prüfen{{end}}
+{{define "header-actions"}}<span class="badge muted">Arch Linux</span>{{end}}
+{{define "content"}}
+			{{if .RequiredModule}}<div class="service-hint"><strong>Modul noch nicht verfügbar</strong><p>Wähle das Modul aus und installiere die angezeigten Abhängigkeiten, damit seine Konfigurationsseite freigeschaltet wird.</p></div>{{end}}
+			{{if .ModuleError}}<div class="service-hint auth-error"><strong>Modulaktion nicht ausgeführt</strong><p>{{.ModuleError}}</p></div>{{end}}
+			{{if .ModuleSuccess}}<div class="service-hint success-hint"><strong>Modulverwaltung</strong><p>{{.ModuleSuccess}}</p></div>{{end}}
+			<div class="service-hint"><strong>Dienste starten erst nach sicherer Grundkonfiguration</strong><p>Profile mit Konfigurationspflicht installieren zunächst nur Pakete. SWAT aktiviert diese Units erst, wenn die jeweilige Konfiguration validiert werden kann. Abwählen entfernt keine Pakete und stoppt keine Dienste.</p></div>
+			<form method="post" action="/admin/modules">
+				<input type="hidden" name="csrf" value="{{.CSRFToken}}">
+				<div class="module-grid">
+				{{range .Modules}}
+				<section class="card module-card">
+					<div class="module-card-heading">
+						<label class="checkbox-label module-choice"><input type="checkbox" name="modules" value="{{.ID}}" {{if .Selected}}checked{{end}} {{if .Required}}disabled{{end}}>{{.Title}}{{if .Required}} <span class="secondary-text">(erforderlich)</span>{{end}}</label>
+						{{if .Ready}}<span class="badge ok">bereit</span>{{else if .Selected}}<span class="badge warn">Abhängigkeiten fehlen</span>{{else}}<span class="badge muted">nicht ausgewählt</span>{{end}}
+					</div>
+					<p class="section-description">{{.Summary}}</p>
+					<h3>Pakete</h3>
+					<ul class="module-dependencies">{{range .PackageStates}}<li><code>{{.Name}}</code> <span>{{.Role}}</span> {{if .Installed}}<span class="badge ok">installiert</span>{{else if .Needed}}<span class="badge warn">fehlt</span>{{else}}<span class="badge muted">optional</span>{{end}}</li>{{end}}</ul>
+					<h3>Dienste</h3>
+					<ul class="module-dependencies">{{range .ServiceStates}}<li><code>{{.Unit}}</code> <span>{{.Role}}</span><span class="secondary-text">active: {{.Active}}, enabled: {{.Enabled}}</span>{{end}}</ul>
+					{{if .SafetyNote}}<p class="secondary-text">{{.SafetyNote}}</p>{{end}}
+				</section>
+				{{end}}
+				</div>
+				<section class="card module-actions">
+					<label class="sudo-field">Sudo-Passwort zur Bestätigung<input type="password" name="sudo_password" autocomplete="current-password" {{if not .ModuleHelperEnabled}}disabled{{end}}></label>
+					<label class="checkbox-label"><input type="checkbox" name="confirm_install" value="1" {{if not .ModuleHelperEnabled}}disabled{{end}}> Ich bestätige die Installation der angezeigten Pakete, ihrer transitiven Abhängigkeiten und ihrer Arch-Paket-Skripte.</label>
+					<div class="form-actions">
+						<button class="button-secondary" type="submit" name="action" value="save-selection">Auswahl speichern</button>
+						<button class="button" type="submit" name="action" value="install" {{if not .ModuleHelperEnabled}}disabled{{end}}>Ausgewählte Pakete installieren</button>
+					</div>
+					{{if not .ModuleHelperEnabled}}<p class="secondary-text">Paketinstallation ist in dieser SWAT-Instanz deaktiviert.</p>{{end}}
+				</section>
+			</form>
+{{end}}
+{{template "layout" .}}

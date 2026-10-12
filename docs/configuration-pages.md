@@ -28,6 +28,17 @@ Geplante weitere Bereiche sind in [System-Konfiguration](system-configuration.md
 beschrieben: SSH-Zugang und Schlüssel, Cronjobs und systemd-Timer, Hostname,
 Benutzer sowie Gruppen.
 
+Nginx besitzt eine eigene strukturierte Desired-State-Seite für vHosts und eine
+generierte Vorschau. Systemdateien werden bis zur Einführung des privilegierten
+Apply-/Rollback-Mechanismus nicht verändert; Details stehen in
+[Nginx-Konfiguration](nginx-configuration.md).
+
+Optionale Konfigurationsseiten werden zentral über die Profile in
+[Module und Dienstprofile](modules.md) freigeschaltet. Ein Profil muss ausgewählt
+und seine Pflichtpakete müssen installiert sein. Die Modulverwaltung zeigt die
+Paket- und Unit-Abhängigkeiten; konfigurationspflichtige Dienste starten erst
+nach validiertem Apply.
+
 ## Standardseiten
 
 Jede Konfigurationsseite enthält grundsätzlich:

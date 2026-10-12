@@ -18,11 +18,14 @@ build() {
 	cd "$startdir"
 	go test ./cmd/... ./internal/...
 	CGO_ENABLED=1 go build -trimpath -buildmode=pie -o "$srcdir/swat" ./cmd/swat
+	CGO_ENABLED=1 go build -trimpath -buildmode=pie -o "$srcdir/swat-privileged" ./cmd/swat-privileged
 }
 
 package() {
 	install -Dm755 "$srcdir/swat" "$pkgdir/usr/bin/swat"
+	install -Dm755 "$srcdir/swat-privileged" "$pkgdir/usr/lib/swat/swat-privileged"
 	install -Dm644 "$startdir/packaging/swat.service" "$pkgdir/usr/lib/systemd/system/swat.service"
+	install -Dm644 "$startdir/packaging/swat-privileged.service" "$pkgdir/usr/lib/systemd/system/swat-privileged.service"
 	install -Dm644 "$startdir/packaging/swat.sysusers.conf" "$pkgdir/usr/lib/sysusers.d/swat.conf"
 	install -Dm644 "$startdir/README.md" "$pkgdir/usr/share/doc/swat/README.md"
 	install -Dm644 "$startdir/cmd/swat/web/static/vendor/spice-html5/COPYING.LESSER" "$pkgdir/usr/share/licenses/swat/vendor-spice-html5-COPYING.LESSER"

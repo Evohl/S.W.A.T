@@ -11,7 +11,7 @@
 			</div>
 			<div class="card">
 				<h2 class="section-title">Berechtigungen</h2>
-				{{if .ReadOnlyMode}}<div class="service-hint"><strong>Read-only-Paketdienst</strong><p>Diese Paketinstallation läuft als unprivilegierter Systembenutzer mit lokalen Netzwerkzugriffen. Root-Aktionen sind abgeschaltet.</p></div>{{end}}
+				{{if .ReadOnlyMode}}<div class="service-hint"><strong>Read-only-Paketdienst</strong><p>SWAT läuft unprivilegiert. Allgemeine Root-Aktionen sind gesperrt; ausschließlich bestätigte Paketprofile aus „Module und Dienste“ können den festen Modul-Helper aufrufen.</p></div>{{end}}
 				{{if .RootAccess}}<div class="service-hint root-warning"><strong>Vollzugriff als Root</strong><p>Administrative Änderungen werden direkt mit Root-Rechten ausgeführt. Falsche Änderungen können das System beschädigen oder unbootbar machen.</p></div>{{else}}<p class="section-description">Diese Sitzung ist lesend. Für administrative Änderungen ist eine erneute Sudo-Authentifizierung erforderlich.</p>{{end}}
 				<table><thead><tr><th>Rolle</th><th>Aktueller Zugriff</th></tr></thead><tbody><tr><td>viewer</td><td><span class="badge ok">aktiv</span></td></tr><tr><td>root</td><td>{{if .RootAccess}}<span class="badge ok">aktiv</span>{{else}}<span class="badge muted">nicht aktiviert</span>{{end}}</td></tr></tbody></table>
 			</div>
