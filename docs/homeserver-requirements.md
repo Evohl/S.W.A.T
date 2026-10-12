@@ -4,7 +4,7 @@ Status: Anforderungen für den geplanten Betrieb auf einem Arch-Homeserver, abge
 
 ## Ausgangspunkt
 
-- S.W.A.T ist unfertig; das Paket läuft standardmäßig loopback-only und read-only. Öffentliches HTTPS erfordert eine explizite TLS-Konfiguration; Firewall-Regeln werden nicht automatisch geändert.
+- S.W.A.T ist unfertig; das Paket lauscht read-only per HTTPS auf Port 8443 und erstellt beim ersten Start ein selbstsigniertes Zertifikat. Firewall-Regeln werden nicht automatisch geändert.
 - Auf dem Zielhost laufen NetworkManager, dhcpcd, dnsmasq und firewalld gleichzeitig; `systemd-networkd` und `systemd-resolved` sind inaktiv.
 - Starlink soll über einen eigenen, nicht gebridgten Ethernet-Port als Rückfall-WAN dienen.
 - DHCP und IPv6-RA laufen derzeit über dnsmasq; die IPv6-Prefix-Delegation ist noch nicht geklärt.

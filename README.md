@@ -7,7 +7,7 @@ S.W.A.T is a small Arch-native server dashboard written in Go. It reads Linux-na
 Repository: [github.com/Evohl/S.W.A.T](https://github.com/Evohl/S.W.A.T)
 
 > [!WARNING]
-> **Under construction / unfertig:** S.W.A.T is an early, incomplete project. Do not rely on it as the only way to administer a host. The packaged service defaults to loopback and read-only; public access requires explicit native HTTPS configuration and should be restricted to trusted source addresses.
+> **Under construction / unfertig:** S.W.A.T is an early, incomplete project. Do not rely on it as the only way to administer a host. The packaged service listens on TLS port 8443 with a generated self-signed certificate and remains read-only. A self-signed certificate triggers a browser warning; restrict TCP 8443 to trusted sources and do not treat encryption as server identity verification.
 
 ## Current navigation
 
@@ -90,11 +90,12 @@ rules.
 The repository includes a local `PKGBUILD`, the systemd unit
 `packaging/swat.service`, and the system user definition
 `packaging/swat.sysusers.conf`. The packaged service runs as the unprivileged
-`swat` account, defaults to `127.0.0.1:8443`, stores state in `/var/lib/swat`,
-and sets `SWAT_READ_ONLY=1`. Root-mode changes are disabled; the package does
+`swat` account, listens on `0.0.0.0:8443`, stores state in `/var/lib/swat`, and
+sets `SWAT_READ_ONLY=1`. It generates and persists a self-signed TLS
+certificate on first start. Root-mode changes are disabled; the package does
 not install sudoers permissions. Cleartext listeners on non-loopback addresses
-are rejected. Native HTTPS can be explicitly enabled with a certificate and
-private key supplied through systemd credentials; see
+are rejected. A trusted custom certificate can replace the default through
+systemd credentials; see
 [`docs/https-deployment.md`](docs/https-deployment.md). A reviewed
 Polkit/helper boundary is required before enabling system writes.
 
@@ -108,21 +109,24 @@ makepkg -s
 Install the generated package, create the system account, and start the service:
 
 ```bash
-sudo pacman -U "./swat-0.1.0-1-$(uname -m).pkg.tar.zst"
+sudo pacman -U "./swat-0.1.0-3-$(uname -m).pkg.tar.zst"
 sudo systemd-sysusers /usr/lib/sysusers.d/swat.conf
 sudo systemctl enable --now swat.service
 ```
 
-Open `http://127.0.0.1:8443/` on the host for local-only use. For temporary
-remote access, use an SSH tunnel:
+Open `https://SERVER-IP:8443/` after starting the package service. The browser
+will warn about the self-signed certificate. The package does not change the
+host firewall; allow TCP 8443 only after inspecting the active firewall and
+preserve SSH access. For temporary local-only access, use an SSH tunnel:
 
 ```bash
 ssh -L 8443:127.0.0.1:8443 user@server
 ```
 
-Then browse to `http://127.0.0.1:8443/` on the client. For internet access,
-configure native HTTPS and restrict the firewall to trusted sources as
-described in [`docs/https-deployment.md`](docs/https-deployment.md). Remove the
-package with `sudo pacman -R swat`; `/var/lib/swat` is retained. The project
-license has not yet been specified (`license=('unknown')` in `PKGBUILD`);
-select and add a license before redistributing binary packages.
+Then browse to `https://127.0.0.1:8443/` on the client and expect the
+self-signed certificate warning. Replace the self-signed certificate with a
+trusted certificate using
+[`docs/https-deployment.md`](docs/https-deployment.md). Remove the package with
+`sudo pacman -R swat`; `/var/lib/swat` is retained. The project license has not
+yet been specified (`license=('unknown')` in `PKGBUILD`); select and add a
+license before redistributing binary packages.

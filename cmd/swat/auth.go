@@ -131,6 +131,7 @@ func clearSessionCookie(w http.ResponseWriter) {
 
 func secureCookiesEnabled() bool {
 	return os.Getenv("SWAT_COOKIE_SECURE") == "1" ||
+		os.Getenv("SWAT_TLS_SELF_SIGNED") == "1" ||
 		(strings.TrimSpace(os.Getenv("SWAT_TLS_CERT")) != "" && strings.TrimSpace(os.Getenv("SWAT_TLS_KEY")) != "")
 }
 

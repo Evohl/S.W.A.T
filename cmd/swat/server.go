@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"swat/internal/zones"
 )
 
 type serverConfig struct {
@@ -23,6 +25,14 @@ func serverConfigFromEnvironment() (serverConfig, error) {
 		addr:    addr,
 		tlsCert: strings.TrimSpace(os.Getenv("SWAT_TLS_CERT")),
 		tlsKey:  strings.TrimSpace(os.Getenv("SWAT_TLS_KEY")),
+	}
+	if config.tlsCert == "" && config.tlsKey == "" && os.Getenv("SWAT_TLS_SELF_SIGNED") == "1" {
+		cert, key, err := ensureSelfSignedCertificate(zones.StateDir(), os.Getenv("SWAT_TLS_SERVER_NAME"))
+		if err != nil {
+			return serverConfig{}, fmt.Errorf("create self-signed TLS certificate: %w", err)
+		}
+		config.tlsCert = cert
+		config.tlsKey = key
 	}
 	if (config.tlsCert == "") != (config.tlsKey == "") {
 		return serverConfig{}, fmt.Errorf("SWAT_TLS_CERT and SWAT_TLS_KEY must both be configured")

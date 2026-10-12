@@ -31,8 +31,8 @@
 - Network adapter name edits are stored as versioned SWAT desired state and previewed; do not write `/etc/systemd/network` until reboot-safe recovery and networkd/nftables reference migration are implemented
 - Native configuration writers may modify only fixed service-owned directories and files carrying the matching SWAT marker and Config-ID; target paths must never come from request data, and writers do not activate network changes or replace reboot-safe recovery
 - State dir defaults to `~/.local/state/swat` (`SWAT_STATE_DIR`); confirmed rules are installed to `/etc/swat/swat.nft`
-- The packaged `swat.service` defaults to loopback, runs as the unprivileged `swat` account, and sets `SWAT_READ_ONLY=1`; the server rejects non-loopback HTTP and requires both TLS files for public binding
-- Public HTTPS uses systemd credentials for the certificate and private key; never make the private key readable by the `swat` account or add generic sudoers permissions
+- The packaged `swat.service` listens on IPv4 interfaces at TLS port 8443, runs as the unprivileged `swat` account, and sets `SWAT_READ_ONLY=1`; it creates a persistent self-signed certificate on first start and does not alter firewall rules
+- The generated TLS key stays in the protected SWAT state directory with mode 0600; custom certificates and keys use systemd credentials, and source key permissions must not be broadened
 - The only packaged privileged module operation is the separate root-owned helper. It requires peer UID `swat` plus independent PAM authentication, accepts compiled module IDs, installs only fixed package lists, and never starts configuration-required units
 - Test deployments require an explicit destination; use the designated fresh Arch VM and never assume the physical host is a deployment target
 

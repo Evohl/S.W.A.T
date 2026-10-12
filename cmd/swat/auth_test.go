@@ -41,9 +41,20 @@ func TestSessionCookiesAreSecureWhenTLSIsConfigured(t *testing.T) {
 func TestSessionCookieCanBeMarkedSecureBehindTLSProxy(t *testing.T) {
 	t.Setenv("SWAT_TLS_CERT", "")
 	t.Setenv("SWAT_TLS_KEY", "")
+	t.Setenv("SWAT_TLS_SELF_SIGNED", "")
 	t.Setenv("SWAT_COOKIE_SECURE", "1")
 	if !secureCookiesEnabled() {
 		t.Fatal("explicit secure-cookie setting was ignored")
+	}
+}
+
+func TestSessionCookieIsSecureForPackagedSelfSignedTLS(t *testing.T) {
+	t.Setenv("SWAT_TLS_CERT", "")
+	t.Setenv("SWAT_TLS_KEY", "")
+	t.Setenv("SWAT_TLS_SELF_SIGNED", "1")
+	t.Setenv("SWAT_COOKIE_SECURE", "")
+	if !secureCookiesEnabled() {
+		t.Fatal("self-signed TLS did not enable secure cookies")
 	}
 }
 

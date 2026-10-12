@@ -1,5 +1,5 @@
 [Unit]
-Description=S.W.A.T local system dashboard (read-only package mode)
+Description=S.W.A.T HTTPS system dashboard (read-only package mode)
 After=network.target swat-privileged.service
 Wants=swat-privileged.service
 
@@ -9,7 +9,8 @@ User=swat
 Group=swat
 StateDirectory=swat
 StateDirectoryMode=0700
-Environment=SWAT_ADDR=127.0.0.1:8443
+Environment=SWAT_ADDR=0.0.0.0:8443
+Environment=SWAT_TLS_SELF_SIGNED=1
 Environment=SWAT_STATE_DIR=/var/lib/swat
 Environment=SWAT_READ_ONLY=1
 Environment=SWAT_MODULE_SETUP=1

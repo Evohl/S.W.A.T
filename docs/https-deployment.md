@@ -1,33 +1,37 @@
 # Public HTTPS Deployment
 
-The packaged service remains bound to `127.0.0.1:8443` unless explicitly
-configured. The server refuses to start on a non-loopback address without
-both a TLS certificate and key. It serves HTTPS directly through Go's standard
-HTTP server; Nginx is not required. HTTP is not redirected because no public
-HTTP listener is started.
+The packaged service listens on IPv4 interfaces at `0.0.0.0:8443` using
+HTTPS directly through Go's standard HTTP server; Nginx is not required. On
+first start, it creates and persists a self-signed certificate and private key
+under `$SWAT_STATE_DIR/tls` (in the package, `/var/lib/swat/tls`). The key is
+mode 0600 and the directory is mode 0700. The certificate includes the system
+hostname and local interface IP addresses. Set `SWAT_TLS_SERVER_NAME` in a
+systemd drop-in before first start if clients will connect through a public IP
+or DNS name not assigned locally. HTTP is not redirected; no public HTTP
+listener is started.
 
-SWAT is an unfinished administrative service. TLS protects credentials in
-transit but does not make public exposure risk-free. Prefer a VPN or restrict
-TCP 8443 to trusted source addresses. The package remains read-only and no
-firewall rules are changed automatically.
+SWAT is an unfinished administrative service. The self-signed certificate
+encrypts traffic but does not authenticate the server; browsers show a
+certificate warning. TLS does not make public exposure risk-free. Prefer a VPN
+or restrict TCP 8443 to trusted source addresses. The package remains
+read-only and no firewall rules are changed automatically.
 
 ## Requirements
 
-- Use a DNS name with an `A` record pointing to the server. Publish an `AAAA`
-  record only if IPv6 routing and firewall access are also configured.
-- Obtain a browser-trusted certificate for that name. For Certbot's standalone
-  HTTP-01 challenge, TCP 80 must reach the host while issuing or renewing the
-  certificate. DNS-01 can be used when inbound TCP 80 must remain closed.
-- Allow inbound TCP 8443 in the active firewall while preserving the existing
-  SSH rule. Inspect the active firewall manager first; do not replace its rules
-  or assume firewalld and nftables are interchangeable.
+- The generated certificate covers the host name and local IP addresses; no
+  domain is required for an initial test. If connecting through a NAT/public
+  address not assigned to a local interface, configure that address with
+  `SWAT_TLS_SERVER_NAME` before first start or replace the certificate later.
+- The package does not change the firewall. Allow inbound TCP 8443 only after
+  inspecting the active firewall manager, and preserve the existing SSH rule.
+  Do not assume firewalld and nftables are interchangeable.
 
-## Configure TLS
+## Custom Certificate
 
-The example uses Certbot certificate paths. Replace `swat.example.net` with
-the actual certificate name. Do not change permissions on `privkey.pem` to
-make it readable by the `swat` account; systemd copies both files into the
-service's protected credential directory at start.
+To use a browser-trusted certificate later, obtain one from an ACME client.
+For Certbot's standalone HTTP-01 challenge, TCP 80 must reach the host while
+issuing or renewing the certificate. DNS-01 can be used when inbound TCP 80
+must remain closed. Replace `swat.example.net` with the certificate name.
 
 For a new HTTP-01 certificate on Arch, first ensure DNS points to this host and
 TCP 80 can reach it, then run:
@@ -37,15 +41,17 @@ sudo pacman -S --needed certbot
 sudo certbot certonly --standalone --preferred-challenges http -d swat.example.net
 ```
 
-Create a service drop-in with `sudo systemctl edit swat.service`:
+Create a service drop-in with `sudo systemctl edit swat.service`. Reset the
+packaged credential entries, then point systemd at the custom files; do not
+loosen private-key file permissions:
 
 ```ini
 [Service]
+LoadCredential=
 LoadCredential=swat-cert:/etc/letsencrypt/live/swat.example.net/fullchain.pem
 LoadCredential=swat-key:/etc/letsencrypt/live/swat.example.net/privkey.pem
 Environment=SWAT_TLS_CERT=%d/swat-cert
 Environment=SWAT_TLS_KEY=%d/swat-key
-Environment=SWAT_ADDR=0.0.0.0:8443
 ```
 
 Apply and check the service:
@@ -56,10 +62,8 @@ sudo systemctl restart swat.service
 sudo systemctl --no-pager status swat.service
 ```
 
-Open `https://swat.example.net:8443/`. Port 8443 does not require a privileged
-bind capability. The session cookie is automatically marked `Secure` when
-both TLS variables are configured. When TLS terminates at a trusted proxy
-instead, set `SWAT_COOKIE_SECURE=1` in the service drop-in.
+Restart SWAT and open `https://swat.example.net:8443/`. The session cookie is
+automatically marked `Secure` for both generated and custom TLS.
 
 ## Renewal
 

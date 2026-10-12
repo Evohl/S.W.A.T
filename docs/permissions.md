@@ -87,10 +87,11 @@ access.
 
 The Arch package service sets `SWAT_READ_ONLY=1`. Generic root access is hidden,
 root requests are rejected, and both sudo command runners refuse execution.
-The service runs as the unprivileged `swat` user, defaults to loopback, and
-installs no sudoers rules. Public listeners require a certificate and private
-key and use HTTPS; the TLS private key is delivered through systemd credentials
-instead of being made readable to `swat`. See
+The service runs as the unprivileged `swat` user, listens on TLS port 8443, and
+installs no sudoers rules. It generates a persistent self-signed certificate
+on first start. The generated private key is stored mode 0600 under the
+protected SWAT state directory; custom certificate keys are delivered through
+systemd credentials. See
 [`https-deployment.md`](https-deployment.md).
 The sole narrow setup exception is `swat-privileged`: a root-owned Unix-socket
 helper that accepts only compiled module IDs from peer UID `swat`. It performs
