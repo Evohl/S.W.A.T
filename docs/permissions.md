@@ -85,10 +85,10 @@ session and CSRF validation, validate target values, use fixed command argument
 lists, and append audit records. They do not grant arbitrary command or file
 access.
 
-The Arch package service sets `SWAT_READ_ONLY=1`. Generic root access is hidden,
-root requests are rejected, and both sudo command runners refuse execution.
-The service runs as the unprivileged `swat` user, listens on TLS port 8443, and
-installs no sudoers rules. It generates a persistent self-signed certificate
+The Arch package service does not set `SWAT_READ_ONLY`, so generic root access is
+available. Root actions run `sudo -S` as the unprivileged `swat` user and fail
+until matching sudo rules exist; the package installs no sudoers rules. The
+service listens on TLS port 8443. It generates a persistent self-signed certificate
 on first start. The generated private key is stored mode 0600 under the
 protected SWAT state directory; custom certificate keys are delivered through
 systemd credentials. See

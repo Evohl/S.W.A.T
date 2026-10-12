@@ -4,7 +4,7 @@ Status: Anforderungen für den geplanten Betrieb auf einem Arch-Homeserver, abge
 
 ## Ausgangspunkt
 
-- S.W.A.T ist unfertig; das Paket lauscht read-only per HTTPS auf Port 8443 und erstellt beim ersten Start ein selbstsigniertes Zertifikat. Firewall-Regeln werden nicht automatisch geändert.
+- S.W.A.T ist unfertig; das Paket lauscht per HTTPS auf Port 8443 und erstellt beim ersten Start ein selbstsigniertes Zertifikat. Firewall-Regeln werden nicht automatisch geändert.
 - Auf dem Zielhost laufen NetworkManager, dhcpcd, dnsmasq und firewalld gleichzeitig; `systemd-networkd` und `systemd-resolved` sind inaktiv.
 - Starlink soll über einen eigenen, nicht gebridgten Ethernet-Port als Rückfall-WAN dienen.
 - DHCP und IPv6-RA laufen derzeit über dnsmasq; die IPv6-Prefix-Delegation ist noch nicht geklärt.
@@ -14,7 +14,7 @@ Status: Anforderungen für den geplanten Betrieb auf einem Arch-Homeserver, abge
 ### P0: Sicherer Netzwerk-MVP
 
 1. **Ownership anzeigen:** aktive und aktivierte Units, Interfaces, Default-Routen, DHCP-/RA-/DHCPv6-PD-Zuständigkeit, DNS-Resolver, Firewall-Zonen und Listener zusammenführen. Konflikte wie NetworkManager plus dhcpcd auf denselben Interfaces konkret benennen; Dienste nie automatisch deaktivieren.
-2. **Privilegien begrenzen:** dedizierter Polkit-Helper mit festem, validiertem Operationsumfang, Audit-Log und kurzer Autorisierung. Keine beliebigen Shell-Eingaben und keine pauschalen sudoers-Rechte. Das Paket bleibt read-only, bis diese Grenze umgesetzt und geprüft ist.
+2. **Privilegien begrenzen:** Root-Helper `swat-privileged` mit festem, validiertem Operationsumfang, Audit-Log und PAM-Prüfung pro Anfrage. Keine beliebigen Shell-Eingaben und keine pauschalen sudoers-Rechte. Root-Aktionen bleiben bis zur Umsetzung dieser Grenze ohne Wirkung.
 3. **Desired State und Ownership beweisen:** strukturierte Eingaben erzeugen ausschließlich SWAT-eigene Dateien wie `90-swat-*.network`/`.netdev`; Marker plus Manifest/Hashes belegen Eigentum. Fremde NM-, dhcpcd-, dnsmasq- und systemd-Dateien nur anzeigen, nie überschreiben.
 4. **Netzwerk-Transaktion:** vor dem Schreiben Konflikte und Syntax prüfen, Änderungen atomar installieren und einen systemd-Rollback-Timer außerhalb des Webprozesses starten. Erst nach bestätigten Erreichbarkeitstests wird die Transaktion übernommen; der Rollback stellt Dateien und vorherige Dienstzustände wieder her.
 5. **systemd-networkd abbilden:** WAN, Bridge und Ports einschließlich DHCPv4, DHCPv6-PD und Prefix-Verteilung modellieren. Aktuelles IPv6-Präfix auf WAN und LAN getrennt darstellen; RA-only auf einer LAN-Bridge nicht mit Provider-PD verwechseln.

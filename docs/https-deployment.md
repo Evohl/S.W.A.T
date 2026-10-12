@@ -13,8 +13,8 @@ listener is started.
 SWAT is an unfinished administrative service. The self-signed certificate
 encrypts traffic but does not authenticate the server; browsers show a
 certificate warning. TLS does not make public exposure risk-free. Prefer a VPN
-or restrict TCP 8443 to trusted source addresses. The package remains
-read-only and no firewall rules are changed automatically.
+or restrict TCP 8443 to trusted source addresses. No firewall rules are changed
+automatically.
 
 ## Requirements
 

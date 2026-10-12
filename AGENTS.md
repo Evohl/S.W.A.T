@@ -15,7 +15,7 @@
 - `cmd/swat-privileged/`: root-owned module installer daemon; no generic commands, paths, service activation, or systemd operations
 - `internal/zones/`: firewall zone/policy model, validation, nftables generator, desired-state store (`zones.json` in `SWAT_STATE_DIR`)
 - `internal/audit/`: append-only JSON audit log (`audit.log` in the state dir)
-- `PKGBUILD` and `packaging/`: local Arch package build, read-only systemd unit, and sysusers account
+- `PKGBUILD` and `packaging/`: local Arch package build, systemd unit, and sysusers account
 - `packaging/` and `PKGBUILD`: Arch package systemd unit, sysusers account, and local package build
 - `docs/`: permission, ownership, service configuration contracts, fresh-Arch onboarding, and host-specific integration requirements
 - `scripts/`: `deploy-test.sh` (build, upload, start on an explicitly selected Arch test VM) and `restart.sh`
@@ -31,10 +31,11 @@
 - Network adapter name edits are stored as versioned SWAT desired state and previewed; do not write `/etc/systemd/network` until reboot-safe recovery and networkd/nftables reference migration are implemented
 - Native configuration writers may modify only fixed service-owned directories and files carrying the matching SWAT marker and Config-ID; target paths must never come from request data, and writers do not activate network changes or replace reboot-safe recovery
 - State dir defaults to `~/.local/state/swat` (`SWAT_STATE_DIR`); confirmed rules are installed to `/etc/swat/swat.nft`
-- The packaged `swat.service` listens on IPv4 interfaces at TLS port 8443, runs as the unprivileged `swat` account, and sets `SWAT_READ_ONLY=1`; it creates a persistent self-signed certificate on first start and does not alter firewall rules
+- The packaged `swat.service` listens on IPv4 interfaces at TLS port 8443, runs as the unprivileged `swat` account; it creates a persistent self-signed certificate on first start and does not alter firewall rules
 - The packaged service permits `AF_NETLINK` for unprivileged network-interface inventory; do not add Linux capabilities for this read-only access
 - The generated TLS key stays in the protected SWAT state directory with mode 0600; custom certificates and keys use systemd credentials, and source key permissions must not be broadened
 - The only packaged privileged module operation is the separate root-owned helper. It requires peer UID `swat` plus independent PAM authentication, accepts compiled module IDs, installs only fixed package lists, and never starts configuration-required units
+- Planned root actions go only through `swat-privileged` as fixed allowlisted operations with per-request PAM checks; `swat` gets no sudo rules, login-user shells are never used, and the sudo password is not kept in the session
 - Test deployments require an explicit destination; use the designated fresh Arch VM and never assume the physical host is a deployment target
 
 ## Work Guidance

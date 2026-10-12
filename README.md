@@ -7,7 +7,7 @@ S.W.A.T is a small Arch-native server dashboard written in Go. It reads Linux-na
 Repository: [github.com/Evohl/S.W.A.T](https://github.com/Evohl/S.W.A.T)
 
 > [!WARNING]
-> **Under construction / unfertig:** S.W.A.T is an early, incomplete project. Do not rely on it as the only way to administer a host. The packaged service listens on TLS port 8443 with a generated self-signed certificate and remains read-only. A self-signed certificate triggers a browser warning; restrict TCP 8443 to trusted sources and do not treat encryption as server identity verification.
+> **Under construction / unfertig:** S.W.A.T is an early, incomplete project. Do not rely on it as the only way to administer a host. The packaged service listens on TLS port 8443 with a generated self-signed certificate. A self-signed certificate triggers a browser warning; restrict TCP 8443 to trusted sources and do not treat encryption as server identity verification.
 
 ## Current navigation
 
@@ -93,9 +93,9 @@ rules.
 The repository includes a local `PKGBUILD`, the systemd unit
 `packaging/swat.service`, and the system user definition
 `packaging/swat.sysusers.conf`. The packaged service runs as the unprivileged
-`swat` account, listens on `0.0.0.0:8443`, stores state in `/var/lib/swat`, and
-sets `SWAT_READ_ONLY=1`. It generates and persists a self-signed TLS
-certificate on first start. Root-mode changes are disabled; the package does
+`swat` account, listens on `0.0.0.0:8443`, and stores state in `/var/lib/swat`.
+It generates and persists a self-signed TLS certificate on first start. Root-mode
+changes run `sudo` as `swat` and fail until sudo rules exist; the package does
 not install sudoers permissions. Cleartext listeners on non-loopback addresses
 are rejected. A trusted custom certificate can replace the default through
 systemd credentials; see
