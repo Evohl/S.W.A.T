@@ -77,7 +77,7 @@ func handleModulesAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	password := r.FormValue("sudo_password")
-	if pamAuthenticate(pamService("SWAT_SUDO_PAM_SERVICE", "sudo"), session.Username, password) != nil {
+	if sudoAuthenticate(session.Username, password) != nil {
 		renderModules(w, r, "Sudo-Authentifizierung fehlgeschlagen. Es wurden keine Moduländerungen ausgeführt.", "")
 		return
 	}

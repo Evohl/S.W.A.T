@@ -47,12 +47,12 @@ func TestReadOnlyModeHidesAndBlocksRootAccess(t *testing.T) {
 func TestReadOnlyModeRejectsRootRequestWithoutPAM(t *testing.T) {
 	t.Setenv("SWAT_READ_ONLY", "1")
 	called := false
-	original := pamAuthenticate
-	pamAuthenticate = func(string, string, string) error {
+	original := sudoAuthenticate
+	sudoAuthenticate = func(string, string) error {
 		called = true
 		return nil
 	}
-	defer func() { pamAuthenticate = original }()
+	defer func() { sudoAuthenticate = original }()
 
 	response := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/admin/request-root", nil)

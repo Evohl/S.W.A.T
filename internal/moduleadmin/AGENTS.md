@@ -12,7 +12,8 @@
 
 ## Local Contracts
 
-- The only accepted operation is `install-modules` with known compiled module IDs.
+- Accepted operations: `install-modules` with known compiled module IDs; `authenticate-login` (any system account, audited as `auth/login`); `authenticate-sudo` (root or `wheel` only, audited as `auth/sudo`). Auth operations return OK or a generic failure and never echo the password.
+- `authenticate-login` and `authenticate-sudo` must never run PAM in the `swat` process; they stay in the root helper.
 - Authenticate the peer as the dedicated `swat` UID using `SO_PEERCRED`; require the submitted system account to be `root` or a member of `wheel`; independently authenticate it through PAM.
 - Never accept package names, paths, service names, shell text, or arbitrary operation names from the client.
 - The helper may query/install only catalog packages with fixed pacman arguments; it does not run systemctl or activate services.

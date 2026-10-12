@@ -2,7 +2,7 @@
 
 ## Purpose
 
-- Run the narrowly allowlisted module package installer as root behind a local Unix socket.
+- Run the narrowly allowlisted module package installer and the login and sudo PAM checks as root behind a local Unix socket.
 
 ## Ownership
 
@@ -15,7 +15,9 @@
 - Refuse to replace a non-socket path and authenticate the connecting peer UID in the protocol layer.
 - The helper must remain a package-only allowlist; it does not accept generic commands or start services.
 - Append a helper-side audit record before any package-manager call; refuse the operation if audit storage is unavailable.
-- The calling system account must be `root` or a member of Arch `wheel`, and is authenticated by PAM for every installation request.
+- Module installation: the calling system account must be `root` or a member of Arch `wheel`, and is authenticated by PAM for every request.
+- Login: any system account accepted by the `SWAT_PAM_SERVICE` PAM stack (default `login`) is accepted; no wheel requirement.
+- Sudo re-check: root or `wheel` only, through the `SWAT_SUDO_PAM_SERVICE` PAM stack (default `sudo`).
 
 ## Work Guidance
 

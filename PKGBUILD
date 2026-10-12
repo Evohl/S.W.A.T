@@ -1,6 +1,6 @@
 pkgname=swat
 pkgver=0.1.0
-pkgrel=4
+pkgrel=5
 pkgdesc='Under-construction Arch Linux server dashboard'
 arch=('x86_64' 'aarch64')
 url='https://github.com/Evohl/S.W.A.T'

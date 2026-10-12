@@ -25,7 +25,7 @@
 - All pages and APIs require a login session; only login page, logout endpoint, and static assets are public
 - Config pages are read-only by default; explicit root-mode actions use allowlisted fixed command arguments, never arbitrary shell input (see `docs/permissions.md`)
 - System configuration may set hostname, installed `LANG` locale, and listed timezone through `hostnamectl`, `localectl`, and `timedatectl`; `/etc/hosts`, other `LC_*` values, and keyboard settings remain untouched
-- Admin login validates via PAM (`SWAT_PAM_SERVICE`, `SWAT_SUDO_PAM_SERVICE`) and creates short-lived sessions only
+- Admin login validates via the root helper's PAM check (`SWAT_PAM_SERVICE` on `swat-privileged`, default `login`); sudo re-check uses `SWAT_SUDO_PAM_SERVICE` on `swat-privileged`; sessions are short-lived only
 - Firewall zones: SWAT owns only the `inet swat` nftables table; unlisted traffic between zones is blocked, interfaces outside every zone are untouched; apply = `nft -c` check, load, then confirm within 60 s or automatic rollback; every zone action is audit-logged
 - Stable adapter names use early-ordered, SWAT-owned `systemd.link` files matching permanent MAC addresses; changing a name must coordinate SWAT networkd and nftables references and must not rename a live management interface without reboot-safe recovery
 - Network adapter name edits are stored as versioned SWAT desired state and previewed; do not write `/etc/systemd/network` until reboot-safe recovery and networkd/nftables reference migration are implemented

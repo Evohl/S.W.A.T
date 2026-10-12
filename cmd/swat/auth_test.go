@@ -7,17 +7,6 @@ import (
 	"testing"
 )
 
-func TestPAMServiceDefaults(t *testing.T) {
-	t.Setenv("SWAT_PAM_SERVICE", "")
-	if got := pamService("SWAT_PAM_SERVICE", "login"); got != "login" {
-		t.Fatalf("default PAM service = %q, want login", got)
-	}
-	t.Setenv("SWAT_PAM_SERVICE", "custom-login")
-	if got := pamService("SWAT_PAM_SERVICE", "login"); got != "custom-login" {
-		t.Fatalf("configured PAM service = %q, want custom-login", got)
-	}
-}
-
 func TestSessionCookiesAreSecureWhenTLSIsConfigured(t *testing.T) {
 	t.Setenv("SWAT_TLS_CERT", "/run/credentials/swat.service/tls-cert")
 	t.Setenv("SWAT_TLS_KEY", "/run/credentials/swat.service/tls-key")
@@ -73,9 +62,9 @@ func TestRootAccessRequestRequiresCSRF(t *testing.T) {
 }
 
 func TestRootAccessRequestActivatesRootAccess(t *testing.T) {
-	originalPAMAuthenticate := pamAuthenticate
-	pamAuthenticate = func(string, string, string) error { return nil }
-	defer func() { pamAuthenticate = originalPAMAuthenticate }()
+	originalSudoAuthenticate := sudoAuthenticate
+	sudoAuthenticate = func(string, string) error { return nil }
+	defer func() { sudoAuthenticate = originalSudoAuthenticate }()
 
 	sessionID, session, err := startSession("SWAT_Admin")
 	if err != nil {

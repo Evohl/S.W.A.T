@@ -29,6 +29,12 @@ const (
 	installTimeout  = 15 * time.Minute
 )
 
+const (
+	operationInstallModules    = "install-modules"
+	operationAuthenticateLogin = "authenticate-login"
+	operationAuthenticateSudo  = "authenticate-sudo"
+)
+
 func Available() bool {
 	info, err := os.Stat(SocketPath)
 	return err == nil && info.Mode()&os.ModeSocket != 0
@@ -55,6 +61,7 @@ type Authorizer func(username, password string) error
 type Installer struct {
 	Run       CommandRunner
 	Authorize Authorizer
+	Login     Authorizer
 	Audit     func(audit.Entry) error
 	mu        sync.Mutex
 }
@@ -67,23 +74,36 @@ func PAMAuthorizer(service string) Authorizer {
 		if username != "root" && !isWheelMember(username) {
 			return errors.New("Benutzer ist kein Mitglied der Administratorgruppe wheel")
 		}
-		transaction, err := pam.StartFunc(service, username, func(style pam.Style, _ string) (string, error) {
-			switch style {
-			case pam.PromptEchoOff, pam.PromptEchoOn:
-				return password, nil
-			default:
-				return "", errors.New("unerwartete PAM-Anfrage")
-			}
-		})
-		if err != nil {
-			return err
-		}
-		defer transaction.End()
-		if err := transaction.Authenticate(0); err != nil {
-			return err
-		}
-		return transaction.AcctMgmt(0)
+		return pamCheck(service, username, password)
 	}
+}
+
+func PAMLoginAuthorizer(service string) Authorizer {
+	if service == "" {
+		service = "login"
+	}
+	return func(username, password string) error {
+		return pamCheck(service, username, password)
+	}
+}
+
+func pamCheck(service, username, password string) error {
+	transaction, err := pam.StartFunc(service, username, func(style pam.Style, _ string) (string, error) {
+		switch style {
+		case pam.PromptEchoOff, pam.PromptEchoOn:
+			return password, nil
+		default:
+			return "", errors.New("unerwartete PAM-Anfrage")
+		}
+	})
+	if err != nil {
+		return err
+	}
+	defer transaction.End()
+	if err := transaction.Authenticate(0); err != nil {
+		return err
+	}
+	return transaction.AcctMgmt(0)
 }
 
 func isWheelMember(username string) bool {
@@ -203,7 +223,13 @@ func (installer *Installer) serveConnection(connection net.Conn, allowedUID uint
 	if err := decoder.Decode(&request); err != nil {
 		return writeResponse(connection, Response{Error: "Ungültige Anfrage."})
 	}
-	if request.Operation != "install-modules" {
+	if request.Operation == operationAuthenticateLogin {
+		return installer.serveAuthentication(connection, request.Username, request.Password, installer.Login, "auth/login")
+	}
+	if request.Operation == operationAuthenticateSudo {
+		return installer.serveAuthentication(connection, request.Username, request.Password, installer.Authorize, "auth/sudo")
+	}
+	if request.Operation != operationInstallModules {
 		return writeResponse(connection, Response{Error: "Nicht erlaubte privilegierte Operation."})
 	}
 	if request.Username == "" || request.Password == "" || installer.Authorize == nil || installer.Authorize(request.Username, request.Password) != nil {
@@ -238,6 +264,23 @@ func (installer *Installer) serveConnection(connection net.Conn, allowedUID uint
 	return writeResponse(connection, result)
 }
 
+func (installer *Installer) serveAuthentication(connection net.Conn, username, password string, authorize Authorizer, action string) error {
+	if username == "" || password == "" || authorize == nil {
+		return writeResponse(connection, Response{Error: "Authentifizierung fehlgeschlagen."})
+	}
+	if installer.Audit == nil {
+		return writeResponse(connection, Response{Error: "Privilegiertes Audit ist nicht konfiguriert."})
+	}
+	if err := authorize(username, password); err != nil {
+		_ = installer.Audit(audit.Entry{User: username, Action: action, Target: "swat", Result: "fehler"})
+		return writeResponse(connection, Response{Error: "Authentifizierung fehlgeschlagen."})
+	}
+	if err := installer.Audit(audit.Entry{User: username, Action: action, Target: "swat", Result: "ok"}); err != nil {
+		return writeResponse(connection, Response{Error: "Audit-Log nicht schreibbar; Authentifizierung abgebrochen."})
+	}
+	return writeResponse(connection, Response{OK: true})
+}
+
 func writeResponse(writer io.Writer, response Response) error {
 	return json.NewEncoder(writer).Encode(response)
 }
@@ -261,6 +304,23 @@ func peerUID(connection *net.UnixConn) (uint32, error) {
 }
 
 func Install(ctx context.Context, ids []string, username, password string) (Response, error) {
+	return roundTrip(ctx, Request{Operation: operationInstallModules, Modules: ids, Username: username, Password: password})
+}
+
+func AuthenticateLogin(ctx context.Context, username, password string) error {
+	return authenticate(ctx, operationAuthenticateLogin, username, password)
+}
+
+func AuthenticateSudo(ctx context.Context, username, password string) error {
+	return authenticate(ctx, operationAuthenticateSudo, username, password)
+}
+
+func authenticate(ctx context.Context, operation, username, password string) error {
+	_, err := roundTrip(ctx, Request{Operation: operation, Username: username, Password: password})
+	return err
+}
+
+func roundTrip(ctx context.Context, request Request) (Response, error) {
 	dialer := net.Dialer{Timeout: 5 * time.Second}
 	connection, err := dialer.DialContext(ctx, "unix", SocketPath)
 	if err != nil {
@@ -268,7 +328,7 @@ func Install(ctx context.Context, ids []string, username, password string) (Resp
 	}
 	defer connection.Close()
 	_ = connection.SetDeadline(time.Now().Add(installTimeout + time.Minute))
-	if err := json.NewEncoder(connection).Encode(Request{Operation: "install-modules", Modules: ids, Username: username, Password: password}); err != nil {
+	if err := json.NewEncoder(connection).Encode(request); err != nil {
 		return Response{}, err
 	}
 	var response Response
@@ -278,7 +338,7 @@ func Install(ctx context.Context, ids []string, username, password string) (Resp
 	}
 	if !response.OK {
 		if response.Error == "" {
-			response.Error = "Modulinstallation fehlgeschlagen."
+			response.Error = "Helfer-Anfrage fehlgeschlagen."
 		}
 		return response, errors.New(response.Error)
 	}

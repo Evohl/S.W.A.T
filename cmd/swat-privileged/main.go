@@ -65,6 +65,7 @@ func main() {
 	log.Printf("module installer helper listening on %s", moduleadmin.SocketPath)
 	installer := &moduleadmin.Installer{
 		Authorize: moduleadmin.PAMAuthorizer(os.Getenv("SWAT_SUDO_PAM_SERVICE")),
+		Login:     moduleadmin.PAMLoginAuthorizer(os.Getenv("SWAT_PAM_SERVICE")),
 		Audit: func(entry audit.Entry) error {
 			return audit.Log("/var/lib/swat", entry)
 		},

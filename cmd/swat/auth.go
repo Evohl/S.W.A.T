@@ -1,17 +1,17 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
-	"fmt"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/msteinert/pam/v2"
+	"swat/internal/moduleadmin"
 )
 
 const (
@@ -46,33 +46,15 @@ var sessions = struct {
 	items map[string]authSession
 }{items: make(map[string]authSession)}
 
-func pamService(environment, fallback string) string {
-	if service := os.Getenv(environment); service != "" {
-		return service
+// PAM checks run in the root helper: pam_unix cannot read shadow from the swat process.
+var (
+	loginAuthenticate = func(username, password string) error {
+		return moduleadmin.AuthenticateLogin(context.Background(), username, password)
 	}
-	return fallback
-}
-
-func authenticatePAM(service, username, password string) error {
-	transaction, err := pam.StartFunc(service, username, func(style pam.Style, message string) (string, error) {
-		switch style {
-		case pam.PromptEchoOff, pam.PromptEchoOn:
-			return password, nil
-		default:
-			return "", fmt.Errorf("unerwartete PAM-Anfrage")
-		}
-	})
-	if err != nil {
-		return err
+	sudoAuthenticate = func(username, password string) error {
+		return moduleadmin.AuthenticateSudo(context.Background(), username, password)
 	}
-	defer transaction.End()
-	if err := transaction.Authenticate(0); err != nil {
-		return err
-	}
-	return transaction.AcctMgmt(0)
-}
-
-var pamAuthenticate = authenticatePAM
+)
 
 func randomToken() (string, error) {
 	buffer := make([]byte, 32)
@@ -165,7 +147,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	username := r.FormValue("username")
-	if username == "" || authenticatePAM(pamService("SWAT_PAM_SERVICE", "login"), username, r.FormValue("password")) != nil {
+	if username == "" || loginAuthenticate(username, r.FormValue("password")) != nil {
 		render(w, r, "login", "login.html", map[string]any{"LoginError": "Anmeldung über das Systemkonto fehlgeschlagen."})
 		return
 	}
@@ -224,7 +206,7 @@ func handleRootAccessRequest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ungültige Anfrage", http.StatusBadRequest)
 		return
 	}
-	if pamAuthenticate(pamService("SWAT_SUDO_PAM_SERVICE", "sudo"), session.Username, r.FormValue("sudo_password")) != nil {
+	if sudoAuthenticate(session.Username, r.FormValue("sudo_password")) != nil {
 		render(w, r, "settings", "settings.html", map[string]any{"RootError": "Sudo-Authentifizierung fehlgeschlagen. Es wurden keine Root-Rechte aktiviert."})
 		return
 	}

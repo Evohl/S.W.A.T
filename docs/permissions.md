@@ -43,9 +43,9 @@ These actions must not be exposed as active controls in the normal navigation.
 
 ## Administrative session
 
-The UI validates a system account through PAM and provides a short-lived
-`SWAT_Admin` login session. The session can then submit the sudo password for
-a second PAM check to request administrative access. The current
+The UI asks the root helper to validate a system account through PAM and
+provides a short-lived `SWAT_Admin` login session. The session can then submit the sudo password for
+a second PAM check in the root helper to request administrative access. The current
 implementation invokes fixed commands through `sudo`; the web process never
 becomes root merely because a user logged in.
 

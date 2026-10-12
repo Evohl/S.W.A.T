@@ -39,10 +39,13 @@ Reserved for authenticated, short-lived administrative actions. User, group, and
 - Firewall (zones, inter-zone policies, NAT, active nftables ruleset; applied with confirm-or-rollback, see [docs/network-configuration.md](docs/network-configuration.md))
 - Network (root mode: IPv4/IPv6 forwarding via sysctl)
 
-The admin login validates the selected system account through PAM. The PAM
-service defaults to `login` and can be changed with `SWAT_PAM_SERVICE`. After
+The admin login validates the selected system account through PAM inside the
+root helper (`swat-privileged`), because PAM's shadow check fails in the
+unprivileged `swat` process. The helper's PAM service defaults to `login` and
+can be set with `SWAT_PAM_SERVICE` in the `swat-privileged` unit. After
 login, the user can explicitly provide the sudo password for a second PAM
-check (`SWAT_SUDO_PAM_SERVICE`, default `sudo`). A successful check creates a
+check in the root helper (`SWAT_SUDO_PAM_SERVICE` on `swat-privileged`, default
+`sudo`; the account must be `root` or in `wheel`). A successful check creates a
 short-lived administrative session; it does not grant arbitrary root commands.
 Privileged operations use explicit allowlisted commands and are audited.
 All application pages and APIs require an active login session; only the login

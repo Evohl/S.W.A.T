@@ -15,9 +15,9 @@ import (
 
 func withPAMSuccess(t *testing.T) {
 	t.Helper()
-	previous := pamAuthenticate
-	pamAuthenticate = func(string, string, string) error { return nil }
-	t.Cleanup(func() { pamAuthenticate = previous })
+	previous := sudoAuthenticate
+	sudoAuthenticate = func(string, string) error { return nil }
+	t.Cleanup(func() { sudoAuthenticate = previous })
 }
 
 func TestModuleInstallRequiresExplicitConfirmation(t *testing.T) {
