@@ -1,6 +1,6 @@
 pkgname=swat
 pkgver=0.1.0
-pkgrel=1
+pkgrel=2
 pkgdesc='Under-construction Arch Linux server dashboard'
 arch=('x86_64' 'aarch64')
 url='https://github.com/Evohl/S.W.A.T'
@@ -12,6 +12,7 @@ optdepends=(
 	'iproute2: network interface information'
 	'nftables: firewall inspection'
 	'libvirt: virtual machine inventory and management'
+	'certbot: obtain and renew ACME certificates for public HTTPS'
 )
 
 build() {

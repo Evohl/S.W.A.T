@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"slices"
 	"strings"
@@ -87,9 +86,9 @@ func loadPages() map[string]*template.Template {
 }
 
 func main() {
-	addr := os.Getenv("SWAT_ADDR")
-	if addr == "" {
-		addr = ":8443"
+	config, err := serverConfigFromEnvironment()
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	mux := http.NewServeMux()
@@ -143,8 +142,12 @@ func main() {
 	mux.HandleFunc("/api/nftables", handleAPINftables)
 	mux.HandleFunc("/api/storage", handleAPIStorage)
 
-	log.Printf("swat listening on %s", addr)
-	if err := http.ListenAndServe(addr, requireLogin(mux)); err != nil {
+	protocol := "HTTP"
+	if config.tlsCert != "" {
+		protocol = "HTTPS"
+	}
+	log.Printf("swat listening on %s (%s)", config.addr, protocol)
+	if err := config.serve(requireLogin(mux)); err != nil {
 		log.Fatal(err)
 	}
 }

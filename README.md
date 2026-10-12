@@ -7,7 +7,7 @@ S.W.A.T is a small Arch-native server dashboard written in Go. It reads Linux-na
 Repository: [github.com/Evohl/S.W.A.T](https://github.com/Evohl/S.W.A.T)
 
 > [!WARNING]
-> **Under construction / unfertig:** S.W.A.T is an early, incomplete project. Do not expose it directly to untrusted networks or rely on it as the only way to administer a host. The packaged systemd service is deliberately loopback-only and read-only.
+> **Under construction / unfertig:** S.W.A.T is an early, incomplete project. Do not rely on it as the only way to administer a host. The packaged service defaults to loopback and read-only; public access requires explicit native HTTPS configuration and should be restricted to trusted source addresses.
 
 ## Current navigation
 
@@ -90,10 +90,13 @@ rules.
 The repository includes a local `PKGBUILD`, the systemd unit
 `packaging/swat.service`, and the system user definition
 `packaging/swat.sysusers.conf`. The packaged service runs as the unprivileged
-`swat` account, listens only on `127.0.0.1:8443`, stores state in
-`/var/lib/swat`, and sets `SWAT_READ_ONLY=1`. Root-mode changes are disabled;
-the package does not install sudoers permissions. A reviewed Polkit/helper
-boundary is required before enabling system writes.
+`swat` account, defaults to `127.0.0.1:8443`, stores state in `/var/lib/swat`,
+and sets `SWAT_READ_ONLY=1`. Root-mode changes are disabled; the package does
+not install sudoers permissions. Cleartext listeners on non-loopback addresses
+are rejected. Native HTTPS can be explicitly enabled with a certificate and
+private key supplied through systemd credentials; see
+[`docs/https-deployment.md`](docs/https-deployment.md). A reviewed
+Polkit/helper boundary is required before enabling system writes.
 
 Install build dependencies and build the package from the repository root:
 
@@ -110,14 +113,16 @@ sudo systemd-sysusers /usr/lib/sysusers.d/swat.conf
 sudo systemctl enable --now swat.service
 ```
 
-Open `http://127.0.0.1:8443/` on the host. To reach the dashboard remotely,
-use an SSH tunnel instead of exposing the service port:
+Open `http://127.0.0.1:8443/` on the host for local-only use. For temporary
+remote access, use an SSH tunnel:
 
 ```bash
 ssh -L 8443:127.0.0.1:8443 user@server
 ```
 
-Then browse to `http://127.0.0.1:8443/` on the client. Remove the package with
-`sudo pacman -R swat`; `/var/lib/swat` is retained. The project license has not
-yet been specified (`license=('unknown')` in `PKGBUILD`); select and add a
-license before redistributing binary packages.
+Then browse to `http://127.0.0.1:8443/` on the client. For internet access,
+configure native HTTPS and restrict the firewall to trusted sources as
+described in [`docs/https-deployment.md`](docs/https-deployment.md). Remove the
+package with `sudo pacman -R swat`; `/var/lib/swat` is retained. The project
+license has not yet been specified (`license=('unknown')` in `PKGBUILD`);
+select and add a license before redistributing binary packages.

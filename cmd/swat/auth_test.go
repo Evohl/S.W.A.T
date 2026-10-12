@@ -18,6 +18,35 @@ func TestPAMServiceDefaults(t *testing.T) {
 	}
 }
 
+func TestSessionCookiesAreSecureWhenTLSIsConfigured(t *testing.T) {
+	t.Setenv("SWAT_TLS_CERT", "/run/credentials/swat.service/tls-cert")
+	t.Setenv("SWAT_TLS_KEY", "/run/credentials/swat.service/tls-key")
+	t.Setenv("SWAT_COOKIE_SECURE", "")
+
+	response := httptest.NewRecorder()
+	setSessionCookie(response, "session-id")
+	cookies := response.Result().Cookies()
+	if len(cookies) != 1 || !cookies[0].Secure {
+		t.Fatalf("TLS session cookie = %#v, want Secure", cookies)
+	}
+
+	response = httptest.NewRecorder()
+	clearSessionCookie(response)
+	cookies = response.Result().Cookies()
+	if len(cookies) != 1 || !cookies[0].Secure {
+		t.Fatalf("TLS clearing cookie = %#v, want Secure", cookies)
+	}
+}
+
+func TestSessionCookieCanBeMarkedSecureBehindTLSProxy(t *testing.T) {
+	t.Setenv("SWAT_TLS_CERT", "")
+	t.Setenv("SWAT_TLS_KEY", "")
+	t.Setenv("SWAT_COOKIE_SECURE", "1")
+	if !secureCookiesEnabled() {
+		t.Fatal("explicit secure-cookie setting was ignored")
+	}
+}
+
 func TestRootAccessRequestRequiresCSRF(t *testing.T) {
 	sessionID, _, err := startSession("SWAT_Admin")
 	if err != nil {

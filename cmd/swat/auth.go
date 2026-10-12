@@ -121,12 +121,17 @@ func setSessionCookie(w http.ResponseWriter, sessionID string) {
 		MaxAge:   int(sessionTTL.Seconds()),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   os.Getenv("SWAT_COOKIE_SECURE") == "1",
+		Secure:   secureCookiesEnabled(),
 	})
 }
 
 func clearSessionCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookiesEnabled()})
+}
+
+func secureCookiesEnabled() bool {
+	return os.Getenv("SWAT_COOKIE_SECURE") == "1" ||
+		(strings.TrimSpace(os.Getenv("SWAT_TLS_CERT")) != "" && strings.TrimSpace(os.Getenv("SWAT_TLS_KEY")) != "")
 }
 
 func authData(r *http.Request) authView {
