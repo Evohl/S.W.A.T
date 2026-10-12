@@ -17,10 +17,16 @@
 					</div>
 					<p class="section-description">{{.Summary}}</p>
 					<h3>Pakete</h3>
-					<ul class="module-dependencies">{{range .PackageStates}}<li><code>{{.Name}}</code> <span>{{.Role}}</span> {{if .Installed}}<span class="badge ok">installiert</span>{{else if .Needed}}<span class="badge warn">fehlt</span>{{else}}<span class="badge muted">optional</span>{{end}}</li>{{end}}</ul>
+					<table class="module-table">
+						<thead><tr><th>Paket</th><th>Zweck</th><th>Stand</th></tr></thead>
+						<tbody>{{range .PackageStates}}<tr><td><code>{{.Name}}</code></td><td>{{.Role}}</td><td>{{if .Installed}}<span class="badge ok">installiert</span>{{else if .Needed}}<span class="badge warn">fehlt</span>{{else}}<span class="badge muted">optional</span>{{end}}</td></tr>{{end}}</tbody>
+					</table>
 					<h3>Dienste</h3>
-					<ul class="module-dependencies">{{range .ServiceStates}}<li><code>{{.Unit}}</code> <span>{{.Role}}</span><span class="secondary-text">active: {{.Active}}, enabled: {{.Enabled}}</span>{{end}}</ul>
-					{{if .SafetyNote}}<p class="secondary-text">{{.SafetyNote}}</p>{{end}}
+					<table class="module-table">
+						<thead><tr><th>Unit</th><th>Rolle</th><th>Aktiv</th><th>Autostart</th></tr></thead>
+						<tbody>{{range .ServiceStates}}<tr><td><code>{{.Unit}}</code></td><td>{{.Role}}</td><td><span class="badge {{statusClass .Active}}">{{statusLabel .Active}}</span></td><td><span class="badge {{statusClass .Enabled}}">{{statusLabel .Enabled}}</span></td></tr>{{end}}</tbody>
+					</table>
+					{{if .SafetyNote}}<p class="module-note">{{.SafetyNote}}</p>{{end}}
 				</section>
 				{{end}}
 				</div>

@@ -15,6 +15,7 @@ Units. Beispiele:
 | Nginx | `nginx` | `nginx.service` |
 | Mailserver | `postfix`, `dovecot`, `rspamd`; `redis` optional | Postfix, Dovecot, Rspamd und optional Redis |
 | Fail2ban | `fail2ban` | `fail2ban.service` |
+| Virtuelle Maschinen | `libvirt`, `qemu-base` | `libvirtd.service` (`/vms`) |
 
 Die Auswahl wird versioniert als `$SWAT_STATE_DIR/modules.json` mit Modus
 `0600` gespeichert. Nicht ausgewählte Profile werden nicht installiert;

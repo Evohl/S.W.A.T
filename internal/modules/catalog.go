@@ -127,6 +127,17 @@ var catalog = []Definition{
 		Services:   []Service{{Unit: "fail2ban.service", Role: "Ban-Überwachung", ConfigurationRequired: true}},
 		SafetyNote: "Start erst nach Jail- und nftables-Aktionsprüfung, damit gültige Admin-Zugriffe nicht ausgesperrt werden.",
 	},
+	{
+		ID: "virtualization", Title: "Virtuelle Maschinen",
+		Summary: "Libvirt und QEMU/KVM für VM-Inventar, Lebenszyklus und Konsolen.",
+		Packages: []Package{
+			{Name: "libvirt", Role: "Libvirt-Daemon und virsh", Needed: true},
+			{Name: "qemu-base", Role: "QEMU/KVM-Hypervisor für Gäste", Needed: true},
+		},
+		Services:   []Service{{Unit: "libvirtd.service", Role: "Libvirt-Daemon", ConfigurationRequired: true}},
+		SafetyNote: "Start erst nach Prüfung des Standard-NAT-Netzes und der nftables-Regeln, da Libvirt eigene Bridges und Firewallregeln anlegt.",
+		PagePath:   "/vms",
+	},
 }
 
 func Catalog() []Definition {

@@ -28,7 +28,7 @@
 		{{if index .ModulePages "network"}}<a class="nav-item {{if eq .Page "network"}}active{{end}}" href="/network"><span class="dot"></span>Netzwerk</a>{{end}}
 		{{if index .ModulePages "nginx"}}<a class="nav-item {{if eq .Page "nginx"}}active{{end}}" href="/nginx"><span class="dot"></span>Nginx</a>{{end}}
 		{{if index .ModulePages "firewall"}}<a class="nav-item {{if eq .Page "firewall"}}active{{end}}" href="/firewall"><span class="dot"></span>Firewall</a>{{end}}
-		<a class="nav-item {{if eq .Page "vms"}}active{{end}}" href="/vms"><span class="dot"></span>Virtual Machines</a>
+		{{if index .ModulePages "virtualization"}}<a class="nav-item {{if eq .Page "vms"}}active{{end}}" href="/vms"><span class="dot"></span>Virtual Machines</a>{{end}}
 		{{if not .Authenticated}}<a class="nav-item" href="/login"><span class="dot"></span>Admin anmelden</a>{{end}}
 	</div>
 

@@ -48,6 +48,36 @@ func TestModulesPageExplainsDependencyPackagesAndServiceStatus(t *testing.T) {
 	}
 }
 
+func TestVirtualMachinesNavEntryFollowsModuleReadiness(t *testing.T) {
+	t.Setenv("SWAT_STATE_DIR", t.TempDir())
+	const navLink = `href="/vms"`
+
+	// adminRequest installs its own inspector stub, so build the request first and override afterwards.
+	request := adminRequest(t, http.MethodGet, "/modules", nil)
+	inspectModuleCatalog = func(string) ([]modules.Status, modules.Selection, error) {
+		selection := modules.Selection{Version: modules.CurrentVersion}
+		statuses, err := modules.Statuses(selection, map[string]bool{}, nil)
+		return statuses, selection, err
+	}
+	response := httptest.NewRecorder()
+	handleModules(response, request)
+	if strings.Contains(response.Body.String(), navLink) {
+		t.Fatal("virtual machine nav entry shown although the module is not selected or installed")
+	}
+
+	request = adminRequest(t, http.MethodGet, "/modules", nil)
+	inspectModuleCatalog = func(string) ([]modules.Status, modules.Selection, error) {
+		selection := modules.Selection{Version: modules.CurrentVersion, Selected: []string{"virtualization"}}
+		statuses, err := modules.Statuses(selection, map[string]bool{"libvirt": true, "qemu-base": true}, nil)
+		return statuses, selection, err
+	}
+	response = httptest.NewRecorder()
+	handleModules(response, request)
+	if !strings.Contains(response.Body.String(), navLink) {
+		t.Fatal("virtual machine nav entry missing although the module is selected and installed")
+	}
+}
+
 func TestModuleSelectionRequiresPAMAndPersistsDesiredProfiles(t *testing.T) {
 	directory := t.TempDir()
 	t.Setenv("SWAT_STATE_DIR", directory)

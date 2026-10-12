@@ -218,6 +218,18 @@ a { color: inherit; text-decoration: none; }
 .root-request-form { margin-top: 0.85rem; }
 .sudo-field { display: grid; gap: 0.35rem; max-width: 20rem; margin-bottom: 0.65rem; color: var(--text-dim); }
 .sudo-field input { min-height: var(--control-height); padding: 0.45rem 0.65rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-hover); color: var(--text); font: inherit; }
+.module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 30rem), 1fr)); gap: 1.25rem; align-items: start; }
+.module-card { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
+.module-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.module-card-heading .checkbox-label { min-width: 0; }
+.module-card h3 { margin: 0.6rem 0 0; color: var(--text-dim); font-size: 0.78rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+.module-card .section-description { margin: 0; }
+.module-table { table-layout: fixed; }
+.module-table th:first-child, .module-table td:first-child { width: 42%; overflow-wrap: anywhere; }
+.module-table td code { font-size: 0.82rem; }
+.module-table td .badge { white-space: nowrap; }
+.module-note { margin: 0.2rem 0 0; color: var(--text-dim); font-size: 0.82rem; line-height: 1.5; }
+.module-actions { display: grid; gap: 0.75rem; }
 .checkbox-label { display: flex !important; flex-direction: row !important; align-items: center; gap: 0.65rem; color: var(--text) !important; cursor: pointer; }
 input[type="checkbox"] { appearance: none; width: 1.3rem; height: 1.3rem; min-height: 1.3rem; flex: 0 0 1.3rem; margin: 0; border: 1px solid var(--text-dim); border-radius: 0.45rem; background: var(--bg-hover); cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease; }
 input[type="checkbox"]:checked { border-color: var(--accent); background-color: var(--accent); background-image: linear-gradient(45deg, transparent 42%, #fff 42%, #fff 58%, transparent 58%), linear-gradient(-45deg, transparent 45%, #fff 45%, #fff 58%, transparent 58%); background-position: 0.32rem 0.58rem, 0.62rem 0.42rem; background-size: 0.42rem 0.26rem, 0.52rem 0.42rem; background-repeat: no-repeat; box-shadow: 0 0 0 2px var(--accent-dim); }
