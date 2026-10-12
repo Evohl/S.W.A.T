@@ -109,7 +109,7 @@ makepkg -s
 Install the generated package, create the system account, and start the service:
 
 ```bash
-sudo pacman -U "./swat-0.1.0-3-$(uname -m).pkg.tar.zst"
+sudo pacman -U "./swat-0.1.0-4-$(uname -m).pkg.tar.zst"
 sudo systemd-sysusers /usr/lib/sysusers.d/swat.conf
 sudo systemctl enable --now swat.service
 ```

@@ -93,6 +93,8 @@ on first start. The generated private key is stored mode 0600 under the
 protected SWAT state directory; custom certificate keys are delivered through
 systemd credentials. See
 [`https-deployment.md`](https-deployment.md).
+The unit allows `AF_NETLINK` so the unprivileged service can enumerate network
+interfaces; it receives no network-administration capabilities.
 The sole narrow setup exception is `swat-privileged`: a root-owned Unix-socket
 helper that accepts only compiled module IDs from peer UID `swat`. It performs
 its own check for `root` or membership in Arch's `wheel` administrator group,
