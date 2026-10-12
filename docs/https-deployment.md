@@ -8,7 +8,7 @@ HTTP listener is started.
 
 SWAT is an unfinished administrative service. TLS protects credentials in
 transit but does not make public exposure risk-free. Prefer a VPN or restrict
-TCP 443 to trusted source addresses. The package remains read-only and no
+TCP 8443 to trusted source addresses. The package remains read-only and no
 firewall rules are changed automatically.
 
 ## Requirements
@@ -18,7 +18,7 @@ firewall rules are changed automatically.
 - Obtain a browser-trusted certificate for that name. For Certbot's standalone
   HTTP-01 challenge, TCP 80 must reach the host while issuing or renewing the
   certificate. DNS-01 can be used when inbound TCP 80 must remain closed.
-- Allow inbound TCP 443 in the active firewall while preserving the existing
+- Allow inbound TCP 8443 in the active firewall while preserving the existing
   SSH rule. Inspect the active firewall manager first; do not replace its rules
   or assume firewalld and nftables are interchangeable.
 
@@ -45,13 +45,8 @@ LoadCredential=swat-cert:/etc/letsencrypt/live/swat.example.net/fullchain.pem
 LoadCredential=swat-key:/etc/letsencrypt/live/swat.example.net/privkey.pem
 Environment=SWAT_TLS_CERT=%d/swat-cert
 Environment=SWAT_TLS_KEY=%d/swat-key
-Environment=SWAT_ADDR=0.0.0.0:443
-AmbientCapabilities=CAP_NET_BIND_SERVICE
+Environment=SWAT_ADDR=0.0.0.0:8443
 ```
-
-`CAP_NET_BIND_SERVICE` lets the unprivileged service bind port 443. To avoid
-that capability, use a port above 1024, such as `8443`, and include that port
-in the URL and firewall rule instead.
 
 Apply and check the service:
 
@@ -61,9 +56,10 @@ sudo systemctl restart swat.service
 sudo systemctl --no-pager status swat.service
 ```
 
-Open `https://swat.example.net/`. The session cookie is automatically marked
-`Secure` when both TLS variables are configured. When TLS terminates at a
-trusted proxy instead, set `SWAT_COOKIE_SECURE=1` in the service drop-in.
+Open `https://swat.example.net:8443/`. Port 8443 does not require a privileged
+bind capability. The session cookie is automatically marked `Secure` when
+both TLS variables are configured. When TLS terminates at a trusted proxy
+instead, set `SWAT_COOKIE_SECURE=1` in the service drop-in.
 
 ## Renewal
 
