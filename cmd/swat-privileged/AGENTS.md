@@ -2,7 +2,7 @@
 
 ## Purpose
 
-- Run the narrowly allowlisted module package installer and the login and sudo PAM checks as root behind a local Unix socket.
+- Run typed, allowlisted server administration operations and PAM checks as root behind a local Unix socket.
 
 ## Ownership
 
@@ -13,15 +13,16 @@
 
 - Bind only `/run/swat-privileged/modules.sock`, owned by `root:swat` with mode `0660` inside a `root:swat` mode-`0750` directory.
 - Refuse to replace a non-socket path and authenticate the connecting peer UID in the protocol layer.
-- The helper must remain a package-only allowlist; it does not accept generic commands or start services.
-- Append a helper-side audit record before any package-manager call; refuse the operation if audit storage is unavailable.
+- Accept only typed operations implemented in `internal/moduleadmin`; do not accept generic commands, arbitrary paths, or free-form service commands.
+- Append a helper-side audit record before every mutation; refuse the operation if audit storage is unavailable, and record the result afterward.
+- Network and firewall confirmation/rollback windows are owned by the helper process.
 - Module installation: the calling system account must be `root` or a member of Arch `wheel`, and is authenticated by PAM for every request.
 - Login: any system account accepted by the `SWAT_PAM_SERVICE` PAM stack (default `login`) is accepted; no wheel requirement.
-- Sudo re-check: root or `wheel` only, through the `SWAT_SUDO_PAM_SERVICE` PAM stack (default `sudo`).
+- Admin re-check: root or `wheel` only, through the `SWAT_SUDO_PAM_SERVICE` PAM stack (default PAM service name `sudo`); the helper does not execute the `sudo` program.
 
 ## Work Guidance
 
-- Do not add general-purpose file writes, systemctl actions, or arbitrary command execution to this daemon.
+- Keep file and command targets fixed or strictly validated by the operation implementation. Do not add generic file writes or arbitrary command execution to this daemon.
 
 ## Verification
 

@@ -10,7 +10,7 @@ SWAT verwendet für native Linux-Konfigurationen ein gemeinsames Seitenmodell. N
 - `Title` und `Description`: sichtbare Einordnung
 - `Owner`: zuständiger nativer Dienst
 - `Status` und `StatusLabel`: Verfügbarkeit oder Problemzustand
-- `ReadOnly`: bis zur Einführung autorisierter Schreibaktionen `true`
+- `ReadOnly`: true for inventory-only views or while ownership conflicts block changes; writable actions require helper authorization and audit
 - `Sections`: tabellarische oder rohe Konfigurationsabschnitte
 
 Jeder Bereich besitzt einen eigenen Collector-Adapter, zum Beispiel `NetworkConfig` oder `FirewallConfig`. Der Adapter übersetzt native Daten in `ConfigPage`; das gemeinsame Template `config.html` übernimmt die Darstellung.
@@ -49,7 +49,7 @@ Jede Konfigurationsseite enthält grundsätzlich:
 4. eine oder mehrere Sections
 5. einen einheitlichen Leerzustand
 
-Schreibaktionen werden erst ergänzt, wenn der Polkit-/Helper-Mechanismus und das Audit-Log vorhanden sind. Ein neuer Bereich darf bis dahin nur Daten sammeln und anzeigen.
+Schreibaktionen dürfen nur ergänzt werden, wenn eine typisierte Helper-Operation, unabhängige PAM-Prüfung, helperseitiger Start-/Ergebnis-Audit und passende Validierung/Rücknahme vorhanden sind. Bereiche ohne diesen Vertrag bleiben reine Inventur- oder Desired-State-Ansichten.
 
 ## Erweiterung
 

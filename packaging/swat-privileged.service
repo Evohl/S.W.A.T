@@ -1,5 +1,5 @@
 [Unit]
-Description=S.W.A.T allowlisted module package installer
+Description=S.W.A.T allowlisted privileged operations
 After=network-online.target
 Wants=network-online.target
 
@@ -15,12 +15,11 @@ RestartSec=3s
 UMask=0007
 ProtectHome=read-only
 PrivateTmp=yes
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
+ReadWritePaths=/home /var/lib/swat
 ProtectControlGroups=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
 [Install]
 WantedBy=multi-user.target

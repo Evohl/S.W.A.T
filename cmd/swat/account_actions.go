@@ -1,14 +1,14 @@
 package main
 
 import (
+	"context"
 	"crypto/subtle"
 	"fmt"
 	"net/http"
-	"os/exec"
 	"regexp"
-	"strings"
 
 	"swat/internal/collect"
+	"swat/internal/moduleadmin"
 )
 
 var accountNamePattern = regexp.MustCompile(`^[a-z_][a-z0-9_-]*$`)
@@ -28,20 +28,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		renderAccountAction(w, r, "Der Benutzername ist ungültig.", "")
 		return
 	}
-	args := []string{"useradd", "-m", "-s", allowedShell(r.FormValue("shell")), "-c", r.FormValue("fullname")}
-	home := strings.TrimSpace(r.FormValue("home"))
-	if home == "" {
-		home = "/home/" + username
-	}
-	if home != "" {
-		if !strings.HasPrefix(home, "/") || strings.Contains(home, "..") {
-			renderAccountAction(w, r, "Das Home-Verzeichnis ist ungültig.", "")
-			return
-		}
-		args = append(args, "-d", home)
-	}
-	args = append(args, username)
-	if err := runAsRoot(session.SudoPassword, args...); err != nil {
+	if err := performAdminAction(session, "user-create", username, allowedShell(r.FormValue("shell")), r.FormValue("fullname"), r.FormValue("home")); err != nil {
 		renderAccountAction(w, r, "Benutzer konnte nicht angelegt werden: "+err.Error(), "")
 		return
 	}
@@ -63,12 +50,7 @@ func handleCreateGroup(w http.ResponseWriter, r *http.Request) {
 		renderAccountAction(w, r, "Der Gruppenname ist ungültig.", "")
 		return
 	}
-	args := []string{"groupadd"}
-	if gid := strings.TrimSpace(r.FormValue("gid")); gid != "" {
-		args = append(args, "-g", gid)
-	}
-	args = append(args, group)
-	if err := runAsRoot(session.SudoPassword, args...); err != nil {
+	if err := performAdminAction(session, "group-create", group, r.FormValue("gid"), "", ""); err != nil {
 		renderAccountAction(w, r, "Gruppe konnte nicht angelegt werden: "+err.Error(), "")
 		return
 	}
@@ -90,7 +72,7 @@ func handleExpirePassword(w http.ResponseWriter, r *http.Request) {
 		renderAccountAction(w, r, "Systemkonten oder der aktuell angemeldete Benutzer können hier nicht geändert werden.", "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, "chage", "-d", "0", username); err != nil {
+	if err := performAdminAction(session, "user-expire-password", username, "", "", ""); err != nil {
 		renderAccountAction(w, r, "Passwortänderung konnte nicht erzwungen werden: "+err.Error(), "")
 		return
 	}
@@ -112,11 +94,11 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		renderAccountAction(w, r, "Systemkonten oder der aktuell angemeldete Benutzer können nicht gelöscht werden.", "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, "userdel", "-r", username); err != nil {
+	if err := performAdminAction(session, "user-delete", username, "", "", ""); err != nil {
 		renderAccountAction(w, r, "Benutzer konnte nicht gelöscht werden: "+err.Error(), "")
 		return
 	}
-	renderAccountAction(w, r, "", "Benutzer "+username+" wurde gelöscht.")
+	renderAccountAction(w, r, "", "Benutzer "+username+" wurde gelöscht. Das Home-Verzeichnis bleibt erhalten.")
 }
 
 func handleChangeUserGroup(w http.ResponseWriter, r *http.Request) {
@@ -140,20 +122,17 @@ func handleChangeUserGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	action := r.FormValue("action")
-	var args []string
 	var success string
 	switch action {
 	case "add":
-		args = []string{"usermod", "-a", "-G", group, username}
 		success = "Benutzer " + username + " wurde der Gruppe " + group + " hinzugefügt. Eine neue Anmeldung ist erforderlich, damit die Gruppenmitgliedschaft aktiv wird."
 	case "remove":
-		args = []string{"gpasswd", "-d", username, group}
 		success = "Benutzer " + username + " wurde aus der Gruppe " + group + " entfernt. Eine neue Anmeldung ist erforderlich, damit die Gruppenmitgliedschaft aktualisiert wird."
 	default:
 		renderAccountAction(w, r, "Ungültige Gruppenaktion.", "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, args...); err != nil {
+	if err := performAdminAction(session, "group-membership", username, group, action, ""); err != nil {
 		renderAccountAction(w, r, "Gruppenzugehörigkeit konnte nicht geändert werden: "+err.Error(), "")
 		return
 	}
@@ -219,23 +198,8 @@ func manageableGroup(group string) bool {
 	return false
 }
 
-func runAsRoot(password string, args ...string) error {
-	if readOnlyMode() {
-		return fmt.Errorf("diese Installation läuft ausdrücklich im Read-only-Modus")
-	}
-	if password == "" {
-		return fmt.Errorf("kein Sudo-Passwort in der Sitzung vorhanden")
-	}
-	command := exec.Command("sudo", append([]string{"-S", "-p", "", "--", "env", "LC_ALL=C", "LANG=C"}, args...)...)
-	command.Stdin = strings.NewReader(password + "\n")
-	if output, err := command.CombinedOutput(); err != nil {
-		message := strings.TrimSpace(string(output))
-		if message == "" {
-			message = err.Error()
-		}
-		return fmt.Errorf("%s", message)
-	}
-	return nil
+func performAdminAction(session authSession, action, target, value, value2, value3 string) error {
+	return moduleadmin.PerformAdminAction(context.Background(), action, target, value, value2, value3, session.Username, session.AdminPassword)
 }
 
 func renderAccountAction(w http.ResponseWriter, r *http.Request, actionError, actionSuccess string) {

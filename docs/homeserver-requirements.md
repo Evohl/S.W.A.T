@@ -1,6 +1,6 @@
 # S.W.A.T: Homeserver-Anforderungen
 
-Status: Anforderungen für den geplanten Betrieb auf einem Arch-Homeserver, abgeleitet aus dem read-only Ist-Stand vom 2026-10-11. Keine Konfigurationsänderungen sind damit freigegeben.
+Status: Anforderungen für den geplanten Betrieb auf einem Arch-Homeserver. Seit dem read-only Ist-Stand vom 2026-10-11 sind typisierte Helper-Operationen, Auditierung, Firewall-Zonen, Bridge-Apply/Rollback und Forwarding implementiert. Diese Dokumentation beschreibt verbleibende Anforderungen und erteilt keine Freigabe für Änderungen am physischen Host.
 
 ## Ausgangspunkt
 
@@ -14,7 +14,7 @@ Status: Anforderungen für den geplanten Betrieb auf einem Arch-Homeserver, abge
 ### P0: Sicherer Netzwerk-MVP
 
 1. **Ownership anzeigen:** aktive und aktivierte Units, Interfaces, Default-Routen, DHCP-/RA-/DHCPv6-PD-Zuständigkeit, DNS-Resolver, Firewall-Zonen und Listener zusammenführen. Konflikte wie NetworkManager plus dhcpcd auf denselben Interfaces konkret benennen; Dienste nie automatisch deaktivieren.
-2. **Privilegien begrenzen:** Root-Helper `swat-privileged` mit festem, validiertem Operationsumfang, Audit-Log und PAM-Prüfung pro Anfrage. Keine beliebigen Shell-Eingaben und keine pauschalen sudoers-Rechte. Root-Aktionen bleiben bis zur Umsetzung dieser Grenze ohne Wirkung.
+2. **Privilegien begrenzen:** Alle privilegierten Webaktionen laufen über `swat-privileged` mit typisierten Allowlist-Operationen, Helper-seitiger PAM-Prüfung pro Anfrage und internem Audit-Log. Keine beliebigen Shell-Eingaben und keine sudoers-Regeln. Diese Grenze muss noch auf einem isolierten Arch-Testhost praktisch geprüft werden.
 3. **Desired State und Ownership beweisen:** strukturierte Eingaben erzeugen ausschließlich SWAT-eigene Dateien wie `90-swat-*.network`/`.netdev`; Marker plus Manifest/Hashes belegen Eigentum. Fremde NM-, dhcpcd-, dnsmasq- und systemd-Dateien nur anzeigen, nie überschreiben.
 4. **Netzwerk-Transaktion:** vor dem Schreiben Konflikte und Syntax prüfen, Änderungen atomar installieren und einen systemd-Rollback-Timer außerhalb des Webprozesses starten. Erst nach bestätigten Erreichbarkeitstests wird die Transaktion übernommen; der Rollback stellt Dateien und vorherige Dienstzustände wieder her.
 5. **systemd-networkd abbilden:** WAN, Bridge und Ports einschließlich DHCPv4, DHCPv6-PD und Prefix-Verteilung modellieren. Aktuelles IPv6-Präfix auf WAN und LAN getrennt darstellen; RA-only auf einer LAN-Bridge nicht mit Provider-PD verwechseln.
@@ -36,6 +36,10 @@ Status: Anforderungen für den geplanten Betrieb auf einem Arch-Homeserver, abge
 - IPv4, IPv6, DHCP, DNS, VMs und Home Assistant werden vor Commit geprüft; fehlgeschlagener Test löst Rollback aus.
 - Firewall-Änderungen werden separat geplant und bestehen nftables-Validierung sowie Bestätigung/Rollback.
 
-## Umsetzung
+## Umsetzungsstand
 
-Zuerst read-only Ownership und Firewall-Transparenz vervollständigen, dann den Helper und Transaktions-Rollback bauen, danach systemd-networkd/DNS-Writer testen. Starlink-Failover und Dienste-/Backup-Verwaltung folgen separat. Bestehende Verträge: [Netzwerkkonfiguration](network-configuration.md), [Berechtigungen](permissions.md), [Service-Ownership](service-ownership.md).
+- Implementiert: PAM-geschützte Helper-Aktionen für Hostname/Locale/Zeitzone, Konten/Gruppen, freigegebene Services, Libvirt, IPv4/IPv6-Forwarding, SWAT-Firewallzonen und Bridges. Jede Mutation wird helperseitig vor/nach der Aktion auditiert. Firewall- und Bridge-Rollback-Timer laufen im Helper.
+- Noch offen: vollständiger networkd-/DNS-/DHCP-Konfigurationswriter, Rücknahme nach Helper-Neustart oder Stromausfall, Starlink-Failover sowie Dienst-/Backup-Verwaltung. Nginx bleibt Desired State ohne Apply.
+- Vor Betrieb auf dem Homeserver: Paket auf isoliertem Arch-Testhost prüfen, systemd-Sandbox und Schreibpfade verifizieren, Firewall-/Netzwerk-Owner-Konflikte klären und Rücknahme praktisch testen. Netzwerkänderungen auf dem physischen Host bleiben gesondert freigabepflichtig.
+
+Bestehende Verträge: [Netzwerkkonfiguration](network-configuration.md), [Berechtigungen](permissions.md), [Service-Ownership](service-ownership.md).

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 
 	"swat/internal/collect"
+	"swat/internal/moduleadmin"
 )
 
 var serviceUnitPattern = regexp.MustCompile(`^[A-Za-z0-9_@%:.,\\-]+\.service$`)
@@ -29,7 +31,7 @@ func handleServiceAction(w http.ResponseWriter, r *http.Request) {
 		renderServiceAction(w, r, unit, "Ungültige Service-Aktion.", "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, "systemctl", action, "--", unit); err != nil {
+	if err := moduleadmin.PerformAdminAction(context.Background(), "service", unit, action, "", "", session.Username, session.AdminPassword); err != nil {
 		renderServiceAction(w, r, unit, "Service-Aktion fehlgeschlagen: "+err.Error(), "")
 		return
 	}

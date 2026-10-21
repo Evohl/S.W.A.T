@@ -96,7 +96,7 @@ func TestRootAccessRestrictionClearsPrivilegeState(t *testing.T) {
 	session.RootRequested = true
 	session.AdminAccess = true
 	session.RootAccess = true
-	session.SudoPassword = "secret"
+	session.AdminPassword = "secret"
 	sessions.Lock()
 	sessions.items[sessionID] = session
 	sessions.Unlock()
@@ -113,7 +113,7 @@ func TestRootAccessRestrictionClearsPrivilegeState(t *testing.T) {
 	if !ok {
 		t.Fatal("restricted session should remain logged in")
 	}
-	if updated.RootRequested || updated.AdminAccess || updated.RootAccess || updated.SudoPassword != "" {
+	if updated.RootRequested || updated.AdminAccess || updated.RootAccess || updated.AdminPassword != "" {
 		t.Fatalf("root restriction did not clear privilege state: %+v", updated)
 	}
 }

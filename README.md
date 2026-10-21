@@ -24,7 +24,7 @@ Read-only system information:
 
 ### Config
 
-Configuration is read-only by default. Root mode currently enables network forwarding and bridge actions, firewall zone management, and system hostname, installed locale, and timezone changes. Other system and account settings remain read-only:
+Configuration is read-only by default. Authenticated helper actions currently apply network forwarding and bridges, firewall zones, host name/locale/timezone, account/group changes, approved service lifecycle actions, and Libvirt operations. Pages without an apply path remain inventory or Desired State only:
 
 - Network
 - Firewall
@@ -32,7 +32,7 @@ Configuration is read-only by default. Root mode currently enables network forwa
 
 ### Administration
 
-Reserved for authenticated, short-lived administrative actions. User, group, and the remaining system settings are not currently writable.
+Reserved for authenticated, short-lived administrative actions. Actions are typed allowlist operations in `swat-privileged`; the web service does not invoke sudo or install sudoers rules.
 
 - System and users
 - Global settings
@@ -43,11 +43,11 @@ The admin login validates the selected system account through PAM inside the
 root helper (`swat-privileged`), because PAM's shadow check fails in the
 unprivileged `swat` process. The helper's PAM service defaults to `login` and
 can be set with `SWAT_PAM_SERVICE` in the `swat-privileged` unit. After
-login, the user can explicitly provide the sudo password for a second PAM
+login, the user can explicitly provide the administrator password for a second PAM
 check in the root helper (`SWAT_SUDO_PAM_SERVICE` on `swat-privileged`, default
 `sudo`; the account must be `root` or in `wheel`). A successful check creates a
 short-lived administrative session; it does not grant arbitrary root commands.
-Privileged operations use explicit allowlisted commands and are audited.
+Privileged operations use typed allowlisted helper operations and helper-side audit records. Network/firewall rollback timers run in the helper process.
 All application pages and APIs require an active login session; only the login
 page, logout endpoint, and static assets are public.
 
@@ -94,13 +94,14 @@ The repository includes a local `PKGBUILD`, the systemd unit
 `packaging/swat.service`, and the system user definition
 `packaging/swat.sysusers.conf`. The packaged service runs as the unprivileged
 `swat` account, listens on `0.0.0.0:8443`, and stores state in `/var/lib/swat`.
-It generates and persists a self-signed TLS certificate on first start. Root-mode
-changes run `sudo` as `swat` and fail until sudo rules exist; the package does
-not install sudoers permissions. Cleartext listeners on non-loopback addresses
+It generates and persists a self-signed TLS certificate on first start. All
+privileged web actions use typed operations in the root-owned helper with
+helper-side audit logging; the package installs no sudoers permissions.
+Cleartext listeners on non-loopback addresses
 are rejected. A trusted custom certificate can replace the default through
 systemd credentials; see
 [`docs/https-deployment.md`](docs/https-deployment.md). A reviewed
-Polkit/helper boundary is required before enabling system writes.
+System writes are limited to reviewed helper operations; configuration pages without a helper apply operation remain read-only or Desired State only.
 
 Install build dependencies and build the package from the repository root:
 
@@ -112,7 +113,7 @@ makepkg -s
 Install the generated package, create the system account, and start the service:
 
 ```bash
-sudo pacman -U "./swat-0.1.0-4-$(uname -m).pkg.tar.zst"
+sudo pacman -U "./swat-0.1.0-6-$(uname -m).pkg.tar.zst"
 sudo systemd-sysusers /usr/lib/sysusers.d/swat.conf
 sudo systemctl enable --now swat.service
 ```

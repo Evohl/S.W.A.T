@@ -1,34 +1,18 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
-	"sync"
-	"time"
 
 	"swat/internal/audit"
 	"swat/internal/collect"
+	"swat/internal/moduleadmin"
 	"swat/internal/zones"
 )
-
-const zonesConfirmWindow = 60 * time.Second
-
-// pendingApply is a firewall change that is rolled back unless confirmed in time.
-type pendingApply struct {
-	Deadline time.Time
-	previous string
-	password string
-	user     string
-	timer    *time.Timer
-}
-
-var zonesState = struct {
-	sync.Mutex
-	pending *pendingApply
-}{}
 
 type zoneRow struct {
 	zones.Zone
@@ -192,14 +176,6 @@ func renderZones(w http.ResponseWriter, r *http.Request, actionError, actionSucc
 		scriptNote = scriptErr.Error()
 	}
 
-	zonesState.Lock()
-	var pending *pendingApply
-	if zonesState.pending != nil {
-		snapshot := *zonesState.pending
-		pending = &snapshot
-	}
-	zonesState.Unlock()
-
 	forwarding := true
 	if value, err := os.ReadFile("/proc/sys/net/ipv4/ip_forward"); err == nil {
 		forwarding = strings.TrimSpace(string(value)) == "1"
@@ -210,6 +186,10 @@ func renderZones(w http.ResponseWriter, r *http.Request, actionError, actionSucc
 		ruleset = &collect.Ruleset{}
 	}
 
+	pending := false
+	if transactionStatus, statusErr := moduleadmin.TransactionStatus(context.Background()); statusErr == nil {
+		pending = transactionStatus.FirewallPending
+	}
 	render(w, r, "firewall", "firewall-zones.html", map[string]any{
 		"Active":             collect.FirewallConfig(ruleset),
 		"Zones":              rows,
@@ -223,7 +203,7 @@ func renderZones(w http.ResponseWriter, r *http.Request, actionError, actionSucc
 		"Script":             script,
 		"ScriptNote":         scriptNote,
 		"Pending":            pending,
-		"PendingSeconds":     int(zonesConfirmWindow.Seconds()),
+		"PendingSeconds":     60,
 		"ForwardingDisabled": !forwarding,
 		"ZoneActionError":    actionError,
 		"ZoneActionSuccess":  actionSuccess,
@@ -244,18 +224,26 @@ func handleZonesAction(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/modules?required=firewall", http.StatusSeeOther)
 		return
 	}
+	if r.FormValue("action") == "apply" || r.FormValue("action") == "confirm" || r.FormValue("action") == "rollback" {
+		response, err := performFirewallAction(session, r.FormValue("action"), r.FormValue("action") == "apply")
+		result, detail := "ok", ""
+		if err != nil {
+			result, detail = "fehler", err.Error()
+		}
+		_ = audit.Log(zones.StateDir(), audit.Entry{User: session.Username, Action: "zones/" + r.FormValue("action"), Target: "inet swat", Result: result, Detail: detail})
+		if err != nil {
+			renderZones(w, r, err.Error(), "")
+			return
+		}
+		renderZones(w, r, "", response.Message)
+		return
+	}
 	dir := zones.StateDir()
 	action := r.FormValue("action")
 	var message string
 	switch action {
 	case "save-zone", "delete-zone", "save-policy", "delete-policy":
 		message, err = editZonesConfig(dir, action, r)
-	case "apply":
-		message, err = applyZones(dir, session)
-	case "confirm":
-		message, err = confirmZones(dir, session)
-	case "rollback":
-		message, err = rollbackZones(dir, session.Username, "manuell")
 	default:
 		err = fmt.Errorf("Ungültige Aktion.")
 	}
@@ -381,96 +369,20 @@ func editZonesConfig(dir, action string, r *http.Request) (string, error) {
 	}
 }
 
-func applyZones(dir string, session authSession) (string, error) {
-	cfg, err := zones.Load(dir)
-	if err != nil {
-		return "", err
-	}
-	script, err := zones.Generate(cfg)
-	if err != nil {
-		return "", err
-	}
-	zonesState.Lock()
-	defer zonesState.Unlock()
-	if zonesState.pending != nil {
-		return "", fmt.Errorf("Eine Änderung wartet noch auf Bestätigung oder Rücknahme.")
-	}
-	previous := zones.RemoveScript
-	if data, err := os.ReadFile(filepath.Join(dir, "applied.nft")); err == nil {
-		previous = string(data)
-	}
-	pendingPath := filepath.Join(dir, "pending.nft")
-	if err := zones.WriteFileAtomic(pendingPath, []byte(script)); err != nil {
-		return "", err
-	}
-	if err := runAsRoot(session.SudoPassword, "nft", "-c", "-f", pendingPath); err != nil {
-		return "", fmt.Errorf("nftables hat die Regeln abgelehnt: %w", err)
-	}
-	if err := audit.Log(dir, audit.Entry{User: session.Username, Action: "zones/apply-start", Target: "inet swat", Result: "ok"}); err != nil {
-		return "", fmt.Errorf("Audit-Log nicht schreibbar, Änderung abgebrochen: %w", err)
-	}
-	if err := runAsRoot(session.SudoPassword, "nft", "-f", pendingPath); err != nil {
-		return "", fmt.Errorf("Regeln konnten nicht geladen werden: %w", err)
-	}
-	pending := &pendingApply{Deadline: time.Now().Add(zonesConfirmWindow), previous: previous, password: session.SudoPassword, user: session.Username}
-	pending.timer = time.AfterFunc(zonesConfirmWindow, func() {
-		zonesState.Lock()
-		defer zonesState.Unlock()
-		if zonesState.pending == pending {
-			rollbackLocked(dir, pending, "automatisch")
+func performFirewallAction(session authSession, action string, includeConfig bool) (moduleadmin.Response, error) {
+	configJSON := ""
+	if includeConfig {
+		config, err := zones.Load(zones.StateDir())
+		if err != nil {
+			return moduleadmin.Response{}, err
 		}
-	})
-	zonesState.pending = pending
-	return fmt.Sprintf("Regeln geladen. Ohne Bestätigung innerhalb von %d Sekunden werden sie automatisch zurückgenommen.", int(zonesConfirmWindow.Seconds())), nil
-}
-
-func confirmZones(dir string, session authSession) (string, error) {
-	zonesState.Lock()
-	defer zonesState.Unlock()
-	pending := zonesState.pending
-	if pending == nil {
-		return "", fmt.Errorf("Keine Änderung wartet auf Bestätigung.")
+		data, err := json.Marshal(config)
+		if err != nil {
+			return moduleadmin.Response{}, err
+		}
+		configJSON = string(data)
 	}
-	pending.timer.Stop()
-	zonesState.pending = nil
-	applied := filepath.Join(dir, "applied.nft")
-	if err := os.Rename(filepath.Join(dir, "pending.nft"), applied); err != nil {
-		return "", err
-	}
-	if err := runAsRoot(session.SudoPassword, "install", "-D", "-m", "0644", applied, "/etc/swat/swat.nft"); err != nil {
-		return "", fmt.Errorf("Regeln sind aktiv, konnten aber nicht nach /etc/swat/swat.nft gespeichert werden: %w", err)
-	}
-	return "Änderung bestätigt. Die Regeln liegen in /etc/swat/swat.nft; für den Start beim Booten muss diese Datei in /etc/nftables.conf eingebunden sein.", nil
-}
-
-func rollbackZones(dir, user, how string) (string, error) {
-	zonesState.Lock()
-	defer zonesState.Unlock()
-	pending := zonesState.pending
-	if pending == nil {
-		return "", fmt.Errorf("Keine Änderung zum Zurücknehmen vorhanden.")
-	}
-	pending.timer.Stop()
-	if err := rollbackLocked(dir, pending, how); err != nil {
-		return "", err
-	}
-	return "Änderung zurückgenommen.", nil
-}
-
-func rollbackLocked(dir string, pending *pendingApply, how string) error {
-	zonesState.pending = nil
-	path := filepath.Join(dir, "rollback.nft")
-	err := zones.WriteFileAtomic(path, []byte(pending.previous))
-	if err == nil {
-		err = runAsRoot(pending.password, "nft", "-f", path)
-	}
-	result, detail := "ok", ""
-	if err != nil {
-		result, detail = "fehler", err.Error()
-	}
-	_ = audit.Log(dir, audit.Entry{User: pending.user, Action: "zones/rollback", Target: how, Result: result, Detail: detail})
-	pending.password = ""
-	return err
+	return moduleadmin.PerformFirewallAction(context.Background(), "firewall-"+action, configJSON, session.Username, session.AdminPassword)
 }
 
 // customPolicyPorts pairs each custom port row with its optional translate-to and comment fields.

@@ -28,7 +28,7 @@ type authSession struct {
 	RootRequested bool
 	AdminAccess   bool
 	RootAccess    bool
-	SudoPassword  string
+	AdminPassword string
 }
 
 type authView struct {
@@ -213,7 +213,7 @@ func handleRootAccessRequest(w http.ResponseWriter, r *http.Request) {
 	session.RootRequested = true
 	session.AdminAccess = true
 	session.RootAccess = true
-	session.SudoPassword = r.FormValue("sudo_password")
+	session.AdminPassword = r.FormValue("sudo_password")
 	sessions.Lock()
 	sessions.items[sessionID] = session
 	sessions.Unlock()
@@ -237,7 +237,7 @@ func handleRootAccessRestriction(w http.ResponseWriter, r *http.Request) {
 	session.RootRequested = false
 	session.AdminAccess = false
 	session.RootAccess = false
-	session.SudoPassword = ""
+	session.AdminPassword = ""
 	sessions.Lock()
 	sessions.items[sessionID] = session
 	sessions.Unlock()

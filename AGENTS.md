@@ -11,8 +11,8 @@
 - `internal/collect/`: read-only data collectors for host state
 - `internal/configwrite/`: ownership-aware atomic writer for SWAT-managed native configuration files
 - `internal/modules/`: central Arch service-profile registry, package/service status, and persisted selection
-- `internal/moduleadmin/`: fixed-ID Unix-socket protocol and allowlisted package installer with independent PAM authorization
-- `cmd/swat-privileged/`: root-owned module installer daemon; no generic commands, paths, service activation, or systemd operations
+- `internal/moduleadmin/`: typed Unix-socket operations for privileged server actions, helper-side PAM authorization, audit, and confirm/rollback transactions
+- `cmd/swat-privileged/`: root-owned allowlisted administration helper; no generic command or arbitrary path operations
 - `internal/zones/`: firewall zone/policy model, validation, nftables generator, desired-state store (`zones.json` in `SWAT_STATE_DIR`)
 - `internal/audit/`: append-only JSON audit log (`audit.log` in the state dir)
 - `PKGBUILD` and `packaging/`: local Arch package build, systemd unit, and sysusers account
@@ -25,7 +25,7 @@
 - All pages and APIs require a login session; only login page, logout endpoint, and static assets are public
 - Config pages are read-only by default; explicit root-mode actions use allowlisted fixed command arguments, never arbitrary shell input (see `docs/permissions.md`)
 - System configuration may set hostname, installed `LANG` locale, and listed timezone through `hostnamectl`, `localectl`, and `timedatectl`; `/etc/hosts`, other `LC_*` values, and keyboard settings remain untouched
-- Admin login validates via the root helper's PAM check (`SWAT_PAM_SERVICE` on `swat-privileged`, default `login`); sudo re-check uses `SWAT_SUDO_PAM_SERVICE` on `swat-privileged`; sessions are short-lived only
+- Admin login validates via the root helper's PAM check (`SWAT_PAM_SERVICE` on `swat-privileged`, default `login`); the helper rechecks admin credentials through `SWAT_SUDO_PAM_SERVICE` (default PAM stack `sudo`) for each action; no `sudo` executable or sudoers policy is used by the web process
 - Firewall zones: SWAT owns only the `inet swat` nftables table; unlisted traffic between zones is blocked, interfaces outside every zone are untouched; apply = `nft -c` check, load, then confirm within 60 s or automatic rollback; every zone action is audit-logged
 - Stable adapter names use early-ordered, SWAT-owned `systemd.link` files matching permanent MAC addresses; changing a name must coordinate SWAT networkd and nftables references and must not rename a live management interface without reboot-safe recovery
 - Network adapter name edits are stored as versioned SWAT desired state and previewed; do not write `/etc/systemd/network` until reboot-safe recovery and networkd/nftables reference migration are implemented
@@ -34,8 +34,7 @@
 - The packaged `swat.service` listens on IPv4 interfaces at TLS port 8443, runs as the unprivileged `swat` account; it creates a persistent self-signed certificate on first start and does not alter firewall rules
 - The packaged service permits `AF_NETLINK` for unprivileged network-interface inventory; do not add Linux capabilities for this read-only access
 - The generated TLS key stays in the protected SWAT state directory with mode 0600; custom certificates and keys use systemd credentials, and source key permissions must not be broadened
-- The only packaged privileged module operation is the separate root-owned helper. It requires peer UID `swat` plus independent PAM authentication, accepts compiled module IDs, installs only fixed package lists, and never starts configuration-required units
-- Planned root actions go only through `swat-privileged` as fixed allowlisted operations with per-request PAM checks; `swat` gets no sudo rules, login-user shells are never used, and the sudo password is not kept in the session
+- All privileged mutations go through `swat-privileged` as typed allowlisted operations. The helper requires peer UID `swat`, independently authenticates the requesting administrator through PAM, and writes helper-side audit start/result records. It never accepts generic commands or arbitrary paths; the web application uses no sudoers policy.
 - Test deployments require an explicit destination; use the designated fresh Arch VM and never assume the physical host is a deployment target
 
 ## Work Guidance

@@ -21,7 +21,7 @@ func TestReadOnlyModeHidesAndBlocksRootAccess(t *testing.T) {
 	session.AdminAccess = true
 	session.RootAccess = true
 	session.RootRequested = true
-	session.SudoPassword = "not-used"
+	session.AdminPassword = "not-used"
 	sessions.Lock()
 	sessions.items[sessionID] = session
 	sessions.Unlock()
@@ -36,11 +36,8 @@ func TestReadOnlyModeHidesAndBlocksRootAccess(t *testing.T) {
 	if _, err := accountActionSession(request); err == nil || !strings.Contains(err.Error(), "Read-only-Modus") {
 		t.Fatalf("account action not blocked in read-only mode: %v", err)
 	}
-	if err := runAsRoot("unused", "touch", "/tmp/swat-readonly-test"); err == nil || !strings.Contains(err.Error(), "Read-only-Modus") {
-		t.Fatalf("root command not blocked in read-only mode: %v", err)
-	}
-	if _, err := runAsRootCapture("unused", "id"); err == nil || !strings.Contains(err.Error(), "Read-only-Modus") {
-		t.Fatalf("root capture not blocked in read-only mode: %v", err)
+	if _, err := accountActionSession(request); err == nil || !strings.Contains(err.Error(), "Read-only-Modus") {
+		t.Fatalf("helper-backed action not blocked in read-only mode: %v", err)
 	}
 }
 

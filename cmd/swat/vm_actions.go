@@ -1,19 +1,19 @@
 package main
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"html"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"swat/internal/collect"
+	"swat/internal/moduleadmin"
 )
 
 var vmNamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
@@ -79,7 +79,7 @@ func handleVMCreate(w http.ResponseWriter, r *http.Request) {
 		renderVMCreateError(w, r, "Speicherpool ist erforderlich.")
 		return
 	}
-	poolPath, err := libvirtPoolTargetPath(session.SudoPassword, pool)
+	poolPath, err := libvirtPoolTargetPath(session, pool)
 	if err != nil {
 		renderVMCreateError(w, r, "Speicherpool konnte nicht gelesen werden: "+err.Error())
 		return
@@ -92,31 +92,26 @@ func handleVMCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	diskPath := filepath.Join(poolPath, name+".qcow2")
-	if err := runAsRoot(session.SudoPassword, "mkdir", "-p", poolPath); err != nil {
-		renderVMCreateError(w, r, "Speicherpool konnte nicht vorbereitet werden: "+err.Error())
+	if _, err := performVMAction(session, "vm-disk-create", pool, name, strconv.Itoa(diskGiB), "", ""); err != nil {
+		renderVMCreateError(w, r, "Festplatte konnte nicht erstellt werden: "+err.Error())
 		return
 	}
-	isoPath, err := stageVMISO(session.SudoPassword, iso, poolPath, name)
+	isoResult, err := performVMAction(session, "vm-iso-stage", pool, name, iso, "", "")
 	if err != nil {
 		renderVMCreateError(w, r, "ISO-Image konnte nicht in den Libvirt-Speicherpool kopiert werden: "+err.Error())
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, "qemu-img", "create", "-f", "qcow2", diskPath, fmt.Sprintf("%dG", diskGiB)); err != nil {
-		renderVMCreateError(w, r, "Festplatte konnte nicht erstellt werden: "+err.Error())
-		return
-	}
-	xmlPath, err := writeVMXML(name, memory, vcpus, isoPath, diskPath, network)
+	definition, err := writeVMXML(name, memory, vcpus, isoResult.Output, diskPath, network)
 	if err != nil {
 		renderVMCreateError(w, r, "VM-Definition konnte nicht erstellt werden: "+err.Error())
 		return
 	}
-	defer os.Remove(xmlPath)
-	if err := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", "define", xmlPath); err != nil {
+	if _, err := performVMAction(session, "vm-define", name, definition, "", "", ""); err != nil {
 		renderVMCreateError(w, r, "VM konnte nicht definiert werden: "+err.Error())
 		return
 	}
 	if r.FormValue("start_after_create") != "" {
-		if err := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", "start", name); err != nil {
+		if _, err := performVMAction(session, "vm-start", name, "", "", "", ""); err != nil {
 			renderVMCreateError(w, r, "VM konnte nicht gestartet werden: "+err.Error())
 			return
 		}
@@ -184,13 +179,7 @@ func handleLibvirtResourceAction(w http.ResponseWriter, r *http.Request) {
 			renderLibvirtResourceAction(w, r, "Ungültiges ISO-Image.", "")
 			return
 		}
-		poolPath, pathErr := libvirtPoolTargetPath(session.SudoPassword, name)
-		if pathErr != nil || poolPath == "" {
-			renderLibvirtResourceAction(w, r, "Speicherpool konnte nicht gelesen werden.", "")
-			return
-		}
-		isoPath := filepath.Join(poolPath, isoName)
-		if err := runAsRoot(session.SudoPassword, "rm", "-f", "--", isoPath); err != nil {
+		if _, err := performVMAction(session, "vm-iso-delete", name, isoName, "", "", ""); err != nil {
 			renderLibvirtResourceAction(w, r, "ISO-Image konnte nicht gelöscht werden: "+err.Error(), "")
 			return
 		}
@@ -201,16 +190,16 @@ func handleLibvirtResourceAction(w http.ResponseWriter, r *http.Request) {
 		renderLibvirtResourceAction(w, r, "Ungültiger Libvirt-Name.", "")
 		return
 	}
-	var command []string
+	var helperAction string
 	var success string
 	switch resource {
 	case "pool":
 		switch action {
 		case "start":
-			command = []string{"virsh", "--connect", "qemu:///system", "pool-start", name}
+			helperAction = "libvirt-pool-start"
 			success = "Speicherpool gestartet."
 		case "stop":
-			command = []string{"virsh", "--connect", "qemu:///system", "pool-destroy", name}
+			helperAction = "libvirt-pool-stop"
 			success = "Speicherpool gestoppt."
 		default:
 			renderLibvirtResourceAction(w, r, "Ungültige Speicherpool-Aktion.", "")
@@ -219,10 +208,10 @@ func handleLibvirtResourceAction(w http.ResponseWriter, r *http.Request) {
 	case "network":
 		switch action {
 		case "start":
-			command = []string{"virsh", "--connect", "qemu:///system", "net-start", name}
+			helperAction = "libvirt-network-start"
 			success = "Virtuelles Netzwerk gestartet."
 		case "stop":
-			command = []string{"virsh", "--connect", "qemu:///system", "net-destroy", name}
+			helperAction = "libvirt-network-stop"
 			success = "Virtuelles Netzwerk gestoppt."
 		default:
 			renderLibvirtResourceAction(w, r, "Ungültige Netzwerk-Aktion.", "")
@@ -232,7 +221,7 @@ func handleLibvirtResourceAction(w http.ResponseWriter, r *http.Request) {
 		renderLibvirtResourceAction(w, r, "Ungültiger Libvirt-Bereich.", "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, command...); err != nil {
+	if _, err := performVMAction(session, helperAction, name, "", "", "", ""); err != nil {
 		renderLibvirtResourceAction(w, r, "Libvirt-Aktion fehlgeschlagen: "+err.Error(), "")
 		return
 	}
@@ -262,15 +251,15 @@ func handleLibvirtPoolCreate(w http.ResponseWriter, r *http.Request, session aut
 		renderLibvirtResourceAction(w, r, "Der Speicherpfad muss absolut sein und darf kein '..' enthalten.", "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", "pool-define-as", name, "dir", "--target", path); err != nil {
+	if _, err := performVMAction(session, "libvirt-pool-create", name, path, "", "", ""); err != nil {
 		renderLibvirtResourceAction(w, r, "Speicherpool konnte nicht definiert werden: "+err.Error(), "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", "pool-build", name); err != nil {
+	if _, err := performVMAction(session, "libvirt-pool-build", name, "", "", "", ""); err != nil {
 		renderLibvirtResourceAction(w, r, "Speicherpool konnte nicht vorbereitet werden: "+err.Error(), "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", "pool-start", name); err != nil {
+	if _, err := performVMAction(session, "libvirt-pool-activate", name, "", "", "", ""); err != nil {
 		renderLibvirtResourceAction(w, r, "Speicherpool konnte nicht gestartet werden: "+err.Error(), "")
 		return
 	}
@@ -314,32 +303,33 @@ func handleVMAction(w http.ResponseWriter, r *http.Request) {
 	}
 	renderAction := redirectWithFlash
 	action := r.FormValue("action")
-	var command []string
+	helperAction := ""
+	helperValue := ""
 	var success string
 	switch action {
 	case "start":
-		if err := repairVMGraphics(session.SudoPassword, name); err != nil {
+		if err := repairVMGraphics(session, name); err != nil {
 			renderAction("VM-Definition konnte nicht repariert werden: "+err.Error(), "")
 			return
 		}
-		if err := repairVMConsole(session.SudoPassword, name); err != nil {
+		if err := repairVMConsole(session, name); err != nil {
 			renderAction("Serielle VM-Konsole konnte nicht eingerichtet werden: "+err.Error(), "")
 			return
 		}
-		if err := repairVMISO(session.SudoPassword, name); err != nil {
+		if err := repairVMISO(session, name); err != nil {
 			renderAction("ISO-Referenz konnte nicht repariert werden: "+err.Error(), "")
 			return
 		}
-		command = []string{"virsh", "--connect", "qemu:///system", "start", name}
+		helperAction = "vm-start"
 		success = "VM gestartet."
 	case "stop":
-		command = []string{"virsh", "--connect", "qemu:///system", "shutdown", name}
+		helperAction = "vm-stop"
 		success = "Herunterfahren angefordert. Das Gastbetriebssystem muss das Signal noch verarbeiten, bis der Status auf gestoppt wechselt."
 	case "force-stop":
-		command = []string{"virsh", "--connect", "qemu:///system", "destroy", name}
+		helperAction = "vm-force-stop"
 		success = "VM wurde zwangsweise gestoppt."
 	case "restart":
-		command = []string{"virsh", "--connect", "qemu:///system", "reboot", name}
+		helperAction = "vm-restart"
 		success = "VM neu gestartet."
 	case "eject-media":
 		detail, detailErr := collect.VMByName(name)
@@ -356,7 +346,7 @@ func handleVMAction(w http.ResponseWriter, r *http.Request) {
 			renderAction("Ungültiges Installationsmedium.", "")
 			return
 		}
-		command = []string{"virsh", "--connect", "qemu:///system", "change-media", name, target, "--eject", "--config"}
+		helperAction, helperValue = "vm-eject-media", target
 		success = "Installationsmedium ausgehängt."
 	case "delete":
 		detail, detailErr := collect.VMByName(name)
@@ -368,42 +358,40 @@ func handleVMAction(w http.ResponseWriter, r *http.Request) {
 			renderAction("Eine laufende VM kann nicht gelöscht werden.", "")
 			return
 		}
-		command = []string{"virsh", "--connect", "qemu:///system", "undefine", name, "--nvram"}
+		helperAction = "vm-delete"
 		success = "VM gelöscht. Die virtuellen Festplatten wurden nicht entfernt."
 	default:
 		renderAction("Ungültige VM-Aktion.", "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, command...); err != nil {
+	if _, err := performVMAction(session, helperAction, name, helperValue, "", "", ""); err != nil {
 		renderAction("VM-Aktion fehlgeschlagen: "+err.Error(), "")
 		return
 	}
 	renderAction("", success)
 }
 
-func repairVMGraphics(password, name string) error {
-	xmlData, err := runAsRootCapture(password, "virsh", "--connect", "qemu:///system", "dumpxml", name)
+func repairVMGraphics(session authSession, name string) error {
+	response, err := performVMAction(session, "vm-dumpxml", name, "", "", "", "")
 	if err != nil {
 		return err
 	}
+	xmlData := response.Output
 	fixedXML := strings.ReplaceAll(xmlData, "listen='none'", "listen='127.0.0.1'")
 	fixedXML = strings.ReplaceAll(fixedXML, `listen="none"`, `listen="127.0.0.1"`)
 	if fixedXML == xmlData {
 		return nil
 	}
-	path, err := writeHostDeviceXML(fixedXML)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(path)
-	return runAsRoot(password, "virsh", "--connect", "qemu:///system", "define", path)
+	_, err = performVMAction(session, "vm-define", name, fixedXML, "", "", "")
+	return err
 }
 
-func repairVMConsole(password, name string) error {
-	xmlData, err := runAsRootCapture(password, "virsh", "--connect", "qemu:///system", "dumpxml", name)
+func repairVMConsole(session authSession, name string) error {
+	response, err := performVMAction(session, "vm-dumpxml", name, "", "", "", "")
 	if err != nil {
 		return err
 	}
+	xmlData := response.Output
 	fixedXML := xmlData
 	if strings.Contains(fixedXML, "<console type='pty'/>") {
 		fixedXML = strings.Replace(fixedXML, "<console type='pty'/>", "<console type='pty'>\n      <target type='serial' port='0'/>\n    </console>", 1)
@@ -414,33 +402,16 @@ func repairVMConsole(password, name string) error {
 	if fixedXML == xmlData {
 		return nil
 	}
-	path, err := writeHostDeviceXML(fixedXML)
+	_, err = performVMAction(session, "vm-define", name, fixedXML, "", "", "")
+	return err
+}
+
+func repairVMISO(session authSession, name string) error {
+	response, err := performVMAction(session, "vm-dumpxml", name, "", "", "", "")
 	if err != nil {
 		return err
 	}
-	defer os.Remove(path)
-	return runAsRoot(password, "virsh", "--connect", "qemu:///system", "define", path)
-}
-
-func stageVMISO(password, source, poolPath, name string) (string, error) {
-	if !filepath.IsAbs(source) {
-		return "", fmt.Errorf("der ISO-Pfad muss absolut sein")
-	}
-	destination := filepath.Join(poolPath, name+"-installer.iso")
-	if filepath.Clean(source) == filepath.Clean(destination) {
-		return destination, nil
-	}
-	if err := runAsRoot(password, "cp", "--", source, destination); err != nil {
-		return "", err
-	}
-	return destination, nil
-}
-
-func repairVMISO(password, name string) error {
-	xmlData, err := runAsRootCapture(password, "virsh", "--connect", "qemu:///system", "dumpxml", name)
-	if err != nil {
-		return err
-	}
+	xmlData := response.Output
 	var definition struct {
 		Devices struct {
 			Disks []struct {
@@ -467,8 +438,8 @@ func repairVMISO(password, name string) error {
 	if isoSource == "" || !filepath.IsAbs(isoSource) || filepath.Dir(isoSource) == poolPath {
 		return nil
 	}
-	destination, err := stageVMISO(password, isoSource, poolPath, name)
-	if err != nil {
+	destination := filepath.Join(poolPath, name+"-installer.iso")
+	if _, err := performVMAction(session, "vm-iso-copy", name, isoSource, destination, "", ""); err != nil {
 		return err
 	}
 	fixedXML := strings.Replace(xmlData, "file='"+isoSource+"'", "file='"+destination+"'", 1)
@@ -476,12 +447,8 @@ func repairVMISO(password, name string) error {
 	if fixedXML == xmlData {
 		return nil
 	}
-	path, err := writeHostDeviceXML(fixedXML)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(path)
-	return runAsRoot(password, "virsh", "--connect", "qemu:///system", "define", path)
+	_, err = performVMAction(session, "vm-define", name, fixedXML, "", "", "")
+	return err
 }
 
 func handleVMConfig(w http.ResponseWriter, r *http.Request) {
@@ -523,32 +490,32 @@ func handleVMConfig(w http.ResponseWriter, r *http.Request) {
 		renderVMConfigAction(w, r, name, "Ungültige Netzwerk-Auswahl.", "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", "setmaxmem", name, fmt.Sprintf("%dMiB", memory), "--config"); err != nil {
+	if _, err := performVMAction(session, "vm-config-memory", name, strconv.Itoa(memory), "", "", ""); err != nil {
 		renderVMConfigAction(w, r, name, "Arbeitsspeicher konnte nicht gesetzt werden: "+err.Error(), "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", "setmem", name, fmt.Sprintf("%dMiB", memory), "--config"); err != nil {
+	if _, err := performVMAction(session, "vm-config-memory-current", name, strconv.Itoa(memory), "", "", ""); err != nil {
 		renderVMConfigAction(w, r, name, "Arbeitsspeicher konnte nicht gesetzt werden: "+err.Error(), "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", "setvcpus", name, strconv.Itoa(vcpus), "--maximum", "--config"); err != nil {
+	if _, err := performVMAction(session, "vm-config-cpus-max", name, strconv.Itoa(vcpus), "", "", ""); err != nil {
 		renderVMConfigAction(w, r, name, "Maximale CPU-Anzahl konnte nicht gesetzt werden: "+err.Error(), "")
 		return
 	}
-	if err := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", "setvcpus", name, strconv.Itoa(vcpus), "--config"); err != nil {
+	if _, err := performVMAction(session, "vm-config-cpus", name, strconv.Itoa(vcpus), "", "", ""); err != nil {
 		renderVMConfigAction(w, r, name, "CPU-Kerne konnten nicht gesetzt werden: "+err.Error(), "")
 		return
 	}
 	if network != detail.NetworkSelection {
 		if len(detail.Networks) > 0 {
-			if err := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", "detach-interface", name, "network", "--config"); err != nil {
+			if _, err := performVMAction(session, "vm-interface-detach", name, "", "", "", ""); err != nil {
 				renderVMConfigAction(w, r, name, "Netzwerkadapter konnte nicht entfernt werden: "+err.Error(), "")
 				return
 			}
 		}
 		if network != "none" {
 			adapterType, source := vmNetworkArguments(network)
-			if err := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", "attach-interface", name, adapterType, source, "--model", "virtio", "--config"); err != nil {
+			if _, err := performVMAction(session, "vm-interface-attach", name, adapterType, source, "", ""); err != nil {
 				renderVMConfigAction(w, r, name, "Netzwerkadapter konnte nicht eingerichtet werden: "+err.Error(), "")
 				return
 			}
@@ -562,18 +529,15 @@ func handleVMConfig(w http.ResponseWriter, r *http.Request) {
 		if option.Attached == selected[option.Name] {
 			continue
 		}
-		path, writeErr := writeHostDeviceXML(option.XML)
-		if writeErr != nil {
-			renderVMConfigAction(w, r, name, "Hostgerät konnte nicht vorbereitet werden: "+writeErr.Error(), "")
-			return
-		}
 		command := "attach-device"
 		if option.Attached {
 			command = "detach-device"
 		}
-		deviceErr := runAsRoot(session.SudoPassword, "virsh", "--connect", "qemu:///system", command, name, path, "--config")
-		os.Remove(path)
-		if deviceErr != nil {
+		deviceAction := "attach"
+		if command == "detach-device" {
+			deviceAction = "detach"
+		}
+		if _, deviceErr := performVMAction(session, "vm-device-attach", name, deviceAction, option.XML, "", ""); deviceErr != nil {
 			renderVMConfigAction(w, r, name, "Hostgerät konnte nicht durchgereicht werden: "+deviceErr.Error(), "")
 			return
 		}
@@ -590,24 +554,6 @@ func vmNetworkArguments(network string) (string, string) {
 	default:
 		return "network", network
 	}
-}
-
-func writeHostDeviceXML(content string) (string, error) {
-	file, err := os.CreateTemp("", "swat-hostdev-*.xml")
-	if err != nil {
-		return "", err
-	}
-	path := file.Name()
-	if _, err := file.WriteString(content); err != nil {
-		file.Close()
-		os.Remove(path)
-		return "", err
-	}
-	if err := file.Close(); err != nil {
-		os.Remove(path)
-		return "", err
-	}
-	return path, nil
 }
 
 func renderVMConfigAction(w http.ResponseWriter, r *http.Request, name, actionError, actionSuccess string) {
@@ -646,8 +592,8 @@ func parsePositiveInt(value string, fallback int) (int, error) {
 	return parsed, nil
 }
 
-func libvirtPoolTargetPath(password, pool string) (string, error) {
-	output, err := runAsRootCapture(password, "virsh", "--connect", "qemu:///system", "pool-dumpxml", pool)
+func libvirtPoolTargetPath(session authSession, pool string) (string, error) {
+	response, err := performVMAction(session, "libvirt-pool-dumpxml", pool, "", "", "", "")
 	if err != nil {
 		return "", err
 	}
@@ -657,7 +603,7 @@ func libvirtPoolTargetPath(password, pool string) (string, error) {
 		} `xml:"target"`
 	}
 	var parsed targetXML
-	if err := xml.Unmarshal([]byte(output), &parsed); err != nil {
+	if err := xml.Unmarshal([]byte(response.Output), &parsed); err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(parsed.Target.Path), nil
@@ -716,36 +662,9 @@ func writeVMXML(name string, memory, vcpus int, isoPath, diskPath, network strin
 	</devices>
 </domain>`
 	content := fmt.Sprintf(templateXML, html.EscapeString(name), memory, memory, vcpus, html.EscapeString(diskPath), html.EscapeString(isoPath), networkXML)
-	file, err := os.CreateTemp("", "swat-vm-*.xml")
-	if err != nil {
-		return "", err
-	}
-	if _, err := file.WriteString(content); err != nil {
-		file.Close()
-		return "", err
-	}
-	if err := file.Close(); err != nil {
-		return "", err
-	}
-	return file.Name(), nil
+	return content, nil
 }
 
-func runAsRootCapture(password string, args ...string) (string, error) {
-	if readOnlyMode() {
-		return "", fmt.Errorf("diese Installation läuft ausdrücklich im Read-only-Modus")
-	}
-	if password == "" {
-		return "", fmt.Errorf("kein Sudo-Passwort in der Sitzung vorhanden")
-	}
-	command := exec.Command("sudo", append([]string{"-S", "-p", "", "--", "env", "LC_ALL=C", "LANG=C"}, args...)...)
-	command.Stdin = strings.NewReader(password + "\n")
-	output, err := command.CombinedOutput()
-	if err != nil {
-		message := strings.TrimSpace(string(output))
-		if message == "" {
-			message = err.Error()
-		}
-		return "", fmt.Errorf("%s", message)
-	}
-	return strings.TrimSpace(string(output)), nil
+func performVMAction(session authSession, action, target, value, value2, value3, value4 string) (moduleadmin.Response, error) {
+	return moduleadmin.PerformVMAction(context.Background(), action, target, value, value2, value3, value4, session.Username, session.AdminPassword)
 }

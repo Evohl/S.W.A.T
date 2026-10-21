@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 
 	"swat/internal/audit"
 	"swat/internal/collect"
+	"swat/internal/moduleadmin"
 	"swat/internal/netcfg"
 	"swat/internal/zones"
 )
@@ -313,25 +315,8 @@ func setForwarding(session authSession, family string, enable bool) (string, err
 	if enable {
 		value = "1"
 	}
-	if err := runAsRoot(session.SudoPassword, "sysctl", "-w", target.Key+"="+value); err != nil {
-		return "", fmt.Errorf("Forwarding konnte nicht gesetzt werden: %w", err)
-	}
-
-	var content strings.Builder
-	content.WriteString("# Managed-By: SWAT\n")
-	for _, current := range readForwarding() {
-		state := "0"
-		if current.Enabled {
-			state = "1"
-		}
-		fmt.Fprintf(&content, "%s = %s\n", current.Key, state)
-	}
-	staging := filepath.Join(zones.StateDir(), "forwarding.conf")
-	if err := zones.WriteFileAtomic(staging, []byte(content.String())); err != nil {
-		return "", err
-	}
-	if err := runAsRoot(session.SudoPassword, "install", "-m", "0644", staging, forwardingSysctlFile); err != nil {
-		return "", fmt.Errorf("%s-Forwarding ist gesetzt, konnte aber nicht dauerhaft gespeichert werden: %w", target.Label, err)
+	if err := moduleadmin.PerformAdminAction(context.Background(), "network-forwarding", family, value, "", "", session.Username, session.AdminPassword); err != nil {
+		return "", fmt.Errorf("%s: %w", target.Label, err)
 	}
 	state := "deaktiviert"
 	if enable {

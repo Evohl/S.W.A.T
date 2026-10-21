@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 
 	"swat/internal/audit"
 	"swat/internal/collect"
+	"swat/internal/moduleadmin"
 	"swat/internal/zones"
 )
 
@@ -30,8 +32,8 @@ type systemConfigView struct {
 
 var hostnameLabelPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$`)
 
-var runSystemSetting = func(password string, args ...string) error {
-	return runAsRoot(password, args...)
+var runSystemSetting = func(username, password, setting, value string) error {
+	return moduleadmin.SetSystemSetting(context.Background(), setting, value, username, password)
 }
 
 func readSystemConfigView() systemConfigView {
@@ -152,8 +154,11 @@ func handleSystemSetting(w http.ResponseWriter, r *http.Request) {
 	}
 	action := r.FormValue("action")
 	value := strings.TrimSpace(r.FormValue("value"))
+	if action == "hostname" {
+		value = strings.TrimSuffix(value, ".")
+	}
 	options := readSystemConfigView()
-	command, target, err := systemSettingCommand(action, value, options)
+	_, target, err := systemSettingCommand(action, value, options)
 	if err != nil {
 		renderSystem(w, r, err.Error(), "")
 		return
@@ -162,7 +167,7 @@ func handleSystemSetting(w http.ResponseWriter, r *http.Request) {
 		renderSystem(w, r, "Audit-Log nicht schreibbar; Änderung wurde nicht ausgeführt.", "")
 		return
 	}
-	err = runSystemSetting(session.SudoPassword, command...)
+	err = runSystemSetting(session.Username, session.AdminPassword, action, value)
 	result, detail := "ok", ""
 	if err != nil {
 		result, detail = "fehler", err.Error()

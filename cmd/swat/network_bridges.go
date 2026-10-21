@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,30 +10,19 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"swat/internal/audit"
 	"swat/internal/collect"
+	"swat/internal/moduleadmin"
 	"swat/internal/netcfg"
 	"swat/internal/zones"
 )
 
 const networkConfirmWindow = 60 * time.Second
 
-var networkApplyState = struct {
-	sync.Mutex
-	pending *pendingNetworkApply
-}{}
-
 type pendingNetworkApply struct {
 	Deadline time.Time
-	Previous map[string][]byte
-	Absent   map[string]bool
-	Links    []string
-	Password string
-	User     string
-	Timer    *time.Timer
 }
 
 type bridgeView struct {
@@ -249,13 +239,10 @@ func bridgeManagerData(r *http.Request) map[string]any {
 		ready = false
 		reason = optionErr.Error()
 	}
-	networkApplyState.Lock()
 	var pending *pendingNetworkApply
-	if networkApplyState.pending != nil {
-		snapshot := *networkApplyState.pending
-		pending = &snapshot
+	if transactionStatus, statusErr := moduleadmin.TransactionStatus(context.Background()); statusErr == nil && transactionStatus.NetworkPending {
+		pending = &pendingNetworkApply{Deadline: transactionStatus.NetworkDeadline}
 	}
-	networkApplyState.Unlock()
 	return map[string]any{
 		"BridgeManager": map[string]any{
 			"Bridges": rows, "Interfaces": options, "Ready": ready, "Reason": reason,
@@ -290,7 +277,7 @@ func handleNetworkBridgeAction(w http.ResponseWriter, r *http.Request) {
 	case "confirm":
 		success, err = confirmBridgeConfig(session)
 	case "rollback":
-		success, err = rollbackBridgeConfig("manuell")
+		success, err = rollbackBridgeConfig(session)
 	default:
 		err = fmt.Errorf("Ungültige Bridge-Aktion.")
 	}
@@ -417,104 +404,30 @@ func applyBridgeConfig(session authSession) (string, error) {
 		}
 	}
 
-	networkApplyState.Lock()
-	defer networkApplyState.Unlock()
-	if networkApplyState.pending != nil {
-		return "", fmt.Errorf("Eine Netzwerkänderung wartet noch auf Bestätigung oder Rollback")
-	}
-
 	oldConfig, err := netcfg.Load(appliedBridgePath())
 	if err != nil {
 		return "", fmt.Errorf("zuletzt angewendete Bridge-Konfiguration kann nicht gelesen werden: %w", err)
 	}
-	oldFiles, err := bridgeFiles(oldConfig)
-	if err != nil {
-		return "", err
-	}
 	if err := verifyNetworkdMatches([]netcfg.Config{oldConfig, config}, files); err != nil {
 		return "", err
-	}
-	targetDir := "/etc/systemd/network"
-	previous := make(map[string][]byte)
-	absent := make(map[string]bool)
-	allNames := make(map[string]bool)
-	for name := range files {
-		allNames[name] = true
-	}
-	for name := range oldFiles {
-		allNames[name] = true
-	}
-	for name := range allNames {
-		path := filepath.Join(targetDir, name)
-		content, readErr := os.ReadFile(path)
-		if os.IsNotExist(readErr) {
-			absent[path] = true
-			continue
-		}
-		if readErr != nil {
-			return "", readErr
-		}
-		if !strings.HasPrefix(string(content), "# Managed-By: SWAT\n") {
-			return "", fmt.Errorf("fremde Datei %s wird nicht überschrieben", path)
-		}
-		previous[path] = content
-	}
-
-	stageDir, err := os.MkdirTemp(zones.StateDir(), "networkd-stage-")
-	if err != nil {
-		return "", err
-	}
-	defer os.RemoveAll(stageDir)
-	verifyPaths := make([]string, 0, len(files))
-	for name, content := range files {
-		path := filepath.Join(stageDir, name)
-		if err := os.WriteFile(path, content, 0o600); err != nil {
-			return "", err
-		}
-		verifyPaths = append(verifyPaths, path)
-	}
-	sort.Strings(verifyPaths)
-	if len(verifyPaths) > 0 {
-		command := exec.Command("networkd-analyze", append([]string{"verify"}, verifyPaths...)...)
-		if output, err := command.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("networkd-analyze verify: %w: %s", err, strings.TrimSpace(string(output)))
-		}
 	}
 	if err := audit.Log(zones.StateDir(), audit.Entry{User: session.Username, Action: "network/bridge/apply-start", Target: "systemd-networkd", Result: "ok"}); err != nil {
 		return "", fmt.Errorf("Audit-Log nicht schreibbar; Änderung abgebrochen: %w", err)
 	}
 
-	for name := range oldFiles {
-		if _, remains := files[name]; remains {
-			continue
-		}
-		if err := runAsRoot(session.SudoPassword, "rm", "--", filepath.Join(targetDir, name)); err != nil {
-			return "", rollbackBridgeFiles(session.SudoPassword, previous, absent, nil, err)
-		}
+	configJSON, err := json.Marshal(config)
+	if err != nil {
+		return "", err
 	}
-	for name := range files {
-		if err := runAsRoot(session.SudoPassword, "install", "-m", "0644", filepath.Join(stageDir, name), filepath.Join(targetDir, name)); err != nil {
-			return "", rollbackBridgeFiles(session.SudoPassword, previous, absent, nil, err)
-		}
+	previousJSON, err := json.Marshal(oldConfig)
+	if err != nil {
+		return "", err
 	}
-	links := bridgeLinks(oldConfig, config)
-	if err := reloadBridgeLinks(session.SudoPassword, links); err != nil {
-		return "", rollbackBridgeFiles(session.SudoPassword, previous, absent, links, err)
+	response, err := moduleadmin.PerformNetworkAction(context.Background(), "network-bridge-apply", string(configJSON), string(previousJSON), session.Username, session.AdminPassword)
+	if err != nil {
+		return "", err
 	}
-	if err := verifyAppliedNetworkdFiles(config); err != nil {
-		return "", rollbackBridgeFiles(session.SudoPassword, previous, absent, links, err)
-	}
-
-	pending := &pendingNetworkApply{Deadline: time.Now().Add(networkConfirmWindow), Previous: previous, Absent: absent, Links: links, Password: session.SudoPassword, User: session.Username}
-	pending.Timer = time.AfterFunc(networkConfirmWindow, func() {
-		networkApplyState.Lock()
-		defer networkApplyState.Unlock()
-		if networkApplyState.pending == pending {
-			_ = rollbackNetworkLocked(pending, "automatisch")
-		}
-	})
-	networkApplyState.pending = pending
-	return fmt.Sprintf("Bridge-Konfiguration geladen. Bitte innerhalb von %d Sekunden bestätigen; sonst wird sie zurückgenommen.", int(networkConfirmWindow.Seconds())), nil
+	return response.Message, nil
 }
 
 func bridgeLinks(configs ...netcfg.Config) []string {
@@ -535,88 +448,21 @@ func bridgeLinks(configs ...netcfg.Config) []string {
 	return links
 }
 
-func reloadBridgeLinks(password string, links []string) error {
-	if err := runAsRoot(password, "networkctl", "reload"); err != nil {
-		return err
-	}
-	for _, link := range links {
-		if err := runAsRoot(password, "networkctl", "reconfigure", link); err != nil {
-			return fmt.Errorf("networkctl reconfigure %s: %w", link, err)
-		}
-	}
-	return nil
-}
-
-func rollbackBridgeFiles(password string, previous map[string][]byte, absent map[string]bool, links []string, cause error) error {
-	pending := &pendingNetworkApply{Previous: previous, Absent: absent, Links: links, Password: password}
-	if err := rollbackNetworkLocked(pending, "fehler"); err != nil {
-		return fmt.Errorf("%w; Rollback fehlgeschlagen: %v", cause, err)
-	}
-	return cause
-}
-
 func confirmBridgeConfig(session authSession) (string, error) {
-	networkApplyState.Lock()
-	defer networkApplyState.Unlock()
-	pending := networkApplyState.pending
-	if pending == nil {
-		return "", fmt.Errorf("Keine Netzwerkänderung wartet auf Bestätigung")
-	}
-	pending.Timer.Stop()
-	config, err := netcfg.Load(bridgeStatePath())
+	response, err := moduleadmin.PerformNetworkAction(context.Background(), "network-bridge-confirm", "", "", session.Username, session.AdminPassword)
 	if err != nil {
 		return "", err
 	}
-	if err := netcfg.Save(appliedBridgePath(), config); err != nil {
-		return "", err
-	}
-	networkApplyState.pending = nil
-	pending.Password = ""
 	_ = audit.Log(zones.StateDir(), audit.Entry{User: session.Username, Action: "network/bridge/confirm", Target: "systemd-networkd", Result: "ok"})
-	return "Bridge-Konfiguration bestätigt.", nil
+	return response.Message, nil
 }
 
-func rollbackBridgeConfig(reason string) (string, error) {
-	networkApplyState.Lock()
-	defer networkApplyState.Unlock()
-	pending := networkApplyState.pending
-	if pending == nil {
-		return "", fmt.Errorf("Keine Netzwerkänderung wartet auf Rollback")
-	}
-	pending.Timer.Stop()
-	if err := rollbackNetworkLocked(pending, reason); err != nil {
+func rollbackBridgeConfig(session authSession) (string, error) {
+	response, err := moduleadmin.PerformNetworkAction(context.Background(), "network-bridge-rollback", "", "", session.Username, session.AdminPassword)
+	if err != nil {
 		return "", err
 	}
-	return "Bridge-Konfiguration zurückgenommen.", nil
-}
-
-func rollbackNetworkLocked(pending *pendingNetworkApply, reason string) error {
-	networkApplyState.pending = nil
-	for path := range pending.Absent {
-		if err := runAsRoot(pending.Password, "rm", "-f", "--", path); err != nil {
-			return err
-		}
-	}
-	tempDir, err := os.MkdirTemp(zones.StateDir(), "networkd-rollback-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tempDir)
-	for path, content := range pending.Previous {
-		staged := filepath.Join(tempDir, filepath.Base(path))
-		if err := os.WriteFile(staged, content, 0o600); err != nil {
-			return err
-		}
-		if err := runAsRoot(pending.Password, "install", "-m", "0644", staged, path); err != nil {
-			return err
-		}
-	}
-	if err := reloadBridgeLinks(pending.Password, pending.Links); err != nil {
-		return err
-	}
-	_ = audit.Log(zones.StateDir(), audit.Entry{User: pending.User, Action: "network/bridge/rollback", Target: reason, Result: "ok"})
-	pending.Password = ""
-	return nil
+	return response.Message, nil
 }
 
 func splitFields(value string) []string {

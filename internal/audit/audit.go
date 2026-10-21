@@ -32,11 +32,14 @@ func Log(dir string, entry Entry) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	file, err := os.OpenFile(filepath.Join(dir, "audit.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	file, err := os.OpenFile(filepath.Join(dir, "audit.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o660)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
+	if err := file.Chmod(0o660); err != nil {
+		return err
+	}
 	_, err = file.Write(append(data, '\n'))
 	return err
 }
